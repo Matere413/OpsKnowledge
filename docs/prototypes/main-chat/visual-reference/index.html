@@ -1,0 +1,1310 @@
+<!doctype html>
+<!--
+  Non-functional visual reference. Never enter real, corporate, personal,
+  sensitive, or confidential data. This OpenDesign artifact is not a demo,
+  runtime prototype, implementation, security evidence, or accessibility
+  certification. AGENTS.md and brand-guide.md remain authoritative.
+-->
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <title>OpsKnowledge</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600&family=Source+Serif+4:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: oklch(97.03% 0.007 88.64);
+      --surface: oklch(98.8% 0.0041 91.45);
+      --fg: oklch(25.65% 0.004 84.58);
+      --muted: oklch(49.44% 0.0107 78.23);
+      --border: oklch(88.62% 0.0117 84.58);
+      --accent: oklch(37.34% 0.0561 242.68);
+      --accent-soft: oklch(91% 0.018 242.68);
+      --danger: oklch(43% 0.12 28);
+      --warning: oklch(48% 0.08 70);
+      --success: oklch(42% 0.08 155);
+      --font-display: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+      --font-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+      --font-editorial: "Source Serif 4", Georgia, serif;
+      --ease-out: cubic-bezier(.16, 1, .3, 1);
+    }
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #171918;
+      --surface: #1E211F;
+      --fg: #F1EFE9;
+      --muted: #B8B4AB;
+      --border: #373B37;
+      --accent: #7FA6BE;
+      --accent-soft: color-mix(in oklch, #7FA6BE 18%, #1E211F);
+      --danger: oklch(72% 0.12 28);
+      --warning: oklch(78% 0.09 78);
+      --success: oklch(76% 0.09 155);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font: 400 16px/1.5 var(--font-body);
+      -webkit-font-smoothing: antialiased;
+    }
+    button, textarea { font: inherit; }
+    button { color: inherit; }
+    button, summary, textarea { -webkit-tap-highlight-color: transparent; }
+    button:focus-visible, summary:focus-visible, textarea:focus-visible, a:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .app-shell { min-height: 100dvh; }
+
+    .vr-banner {
+      position: fixed;
+      inset: 0 0 auto 0;
+      z-index: 40;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 26px;
+      padding: 4px 12px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .01em;
+      line-height: 1.2;
+      border-bottom: 1px solid color-mix(in oklch, var(--accent) 24%, transparent);
+      pointer-events: none;
+    }
+    .vr-banner svg { width: 14px; height: 14px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+    html[data-theme="dark"] .vr-banner { background: color-mix(in oklch, var(--accent) 16%, var(--surface)); color: color-mix(in oklch, var(--accent) 80%, var(--fg)); }
+
+    .rail {
+      position: fixed;
+      inset: 26px 0 0 0;
+      z-index: 20;
+      width: 64px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 10px max(16px, env(safe-area-inset-bottom));
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+    }
+    .rail-group { display: grid; gap: 8px; }
+    .icon-button {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      transition: color 100ms linear, background-color 220ms var(--ease-out), transform 100ms linear;
+    }
+    .icon-button:hover { color: var(--accent); background: var(--accent-soft); }
+    .icon-button:active { transform: translateY(1px); }
+    .icon-button svg, .menu-button svg, .mobile-menu svg { width: 20px; height: 20px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+    [data-od-id="theme-rail"] .theme-sun,
+    [data-od-id="theme-rail"] .theme-moon {
+      transform-origin: 12px 12px;
+      transition: opacity 180ms linear, transform 320ms var(--ease-out);
+    }
+    [data-od-id="theme-rail"] .theme-sun { opacity: 0; transform: rotate(-70deg) scale(.55); }
+    [data-od-id="theme-rail"] .theme-moon { opacity: 1; transform: rotate(0) scale(1); }
+    html[data-theme="dark"] [data-od-id="theme-rail"] .theme-sun { opacity: 1; transform: rotate(0) scale(1); }
+    html[data-theme="dark"] [data-od-id="theme-rail"] .theme-moon { opacity: 0; transform: rotate(70deg) scale(.55); }
+
+    .mobile-header { display: none; }
+    .wordmark {
+      color: var(--accent);
+      font-size: 18px;
+      font-weight: 500;
+      letter-spacing: .02em;
+    }
+
+    main {
+      min-height: 100dvh;
+      margin-left: 64px;
+      position: relative;
+    }
+    .initial-view {
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      padding: 64px 32px;
+      transition: opacity 300ms var(--ease-out), transform 300ms var(--ease-out);
+    }
+    .initial-view.leaving { opacity: 0; transform: translateY(-12px); pointer-events: none; }
+    .initial-stack {
+      width: min(100%, 720px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+    .sphere-wrap {
+      width: 240px;
+      height: 240px;
+      transition: opacity 300ms var(--ease-out), transform 300ms var(--ease-out);
+      touch-action: pan-x pan-y;
+    }
+    .initial-view.leaving .sphere-wrap { opacity: 0; transform: scale(.88); }
+    #sphere { width: 100%; height: 100%; display: block; }
+    .sphere-fallback {
+      width: 70%;
+      height: 70%;
+      margin: 15%;
+      border: 1px solid color-mix(in oklch, var(--accent) 28%, transparent);
+      border-radius: 50%;
+      background: color-mix(in oklch, var(--accent) 8%, transparent);
+      box-shadow: inset 0 0 40px color-mix(in oklch, var(--accent) 13%, transparent);
+    }
+    h1 {
+      margin: 48px 0 0;
+      font: 600 32px/1.2 var(--font-display);
+      letter-spacing: -.01em;
+      text-wrap: balance;
+    }
+    .composer-shell {
+      width: 100%;
+      margin-top: 32px;
+    }
+    .composer {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: end;
+      gap: 12px;
+      padding: 10px 10px 10px 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      transition: border-color 100ms linear, box-shadow 100ms linear;
+    }
+    .composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+    [data-od-id="initial-composer"] .composer { border-radius: 16px; }
+    [data-od-id="initial-composer"] .send-button { align-self: end; }
+    [data-od-id="initial-composer"] textarea:focus-visible { outline: none; }
+    [data-od-id="docked-composer"] .composer { border-radius: 16px; }
+    [data-od-id="docked-composer"] textarea:focus-visible { outline: none; }
+    textarea {
+      width: 100%;
+      min-height: 44px;
+      max-height: 132px;
+      resize: none;
+      overflow-y: auto;
+      padding: 10px 0;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--fg);
+      line-height: 1.5;
+    }
+    textarea::placeholder { color: var(--muted); opacity: .9; transition: opacity 220ms linear; }
+    textarea.placeholder-fade::placeholder { opacity: 0; }
+    .send-button {
+      width: 44px;
+      height: 44px;
+      min-width: 44px;
+      min-height: 44px;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      border: 1px solid var(--accent);
+      border-radius: 50%;
+      background: var(--accent);
+      color: var(--surface);
+      cursor: pointer;
+      transition: opacity 100ms linear, transform 100ms linear, background-color 220ms var(--ease-out);
+    }
+    .send-button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+    .send-button:not(:disabled):hover { background: color-mix(in oklch, var(--accent) 88%, var(--fg)); }
+    .send-button:not(:disabled):active { transform: translateY(1px); }
+    .send-button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+    .send-button.stop { background: transparent; color: var(--accent); }
+    .approved-notice {
+      max-width: 68ch;
+      margin: 24px auto 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    .demo-policy {
+      max-width: 68ch;
+      margin: 16px auto 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+      letter-spacing: .01em;
+    }
+    .aux-notice {
+      display: none;
+      max-width: 68ch;
+      margin: 16px auto 0;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      color: var(--fg);
+      font-size: 14px;
+      text-align: left;
+    }
+    .aux-notice.visible { display: block; }
+
+    .chat-view { display: none; min-height: 100dvh; padding-bottom: 184px; }
+    .chat-view.active { display: block; }
+    .conversation {
+      width: min(100%, 720px);
+      margin: 0 auto;
+      padding: 64px 24px 48px;
+    }
+    .session-notice {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 32px;
+      padding: 12px 0;
+      border-block: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .session-notice.visible { display: flex; }
+    .inline-button, .action-button {
+      min-height: 44px;
+      padding: 0 10px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--fg);
+      font-weight: 500;
+      letter-spacing: .02em;
+      cursor: pointer;
+      text-decoration: underline;
+      text-decoration-color: var(--border);
+      text-underline-offset: 4px;
+    }
+    .inline-button:hover, .action-button:hover { color: var(--accent); text-decoration-color: currentColor; }
+    .message-group + .message-group { margin-top: 32px; }
+    .message-label { margin: 0 0 8px; color: var(--muted); font-size: 14px; letter-spacing: .01em; }
+    .user-query {
+      width: min(85%, 610px);
+      margin: 0;
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--surface);
+      overflow-wrap: anywhere;
+    }
+    .answer-block {
+      font-size: 18px;
+      line-height: 1.5;
+      max-width: 70ch;
+    }
+    .answer-block p { margin: 0 0 16px; }
+    .citation {
+      color: var(--accent);
+      font-size: .72em;
+      font-weight: 600;
+      text-decoration: none;
+      vertical-align: super;
+      line-height: 0;
+    }
+    .citation:hover { text-decoration: underline; text-underline-offset: 2px; }
+    .generation-state { color: var(--muted); font-size: 16px; }
+    .progress-line { width: 72px; height: 1px; margin-top: 12px; overflow: hidden; background: var(--border); }
+    .progress-line::after {
+      content: "";
+      display: block;
+      width: 24px;
+      height: 1px;
+      background: var(--accent);
+      animation: progress 1400ms var(--ease-out) infinite;
+    }
+    @keyframes progress { from { transform: translateX(-24px); } to { transform: translateX(72px); } }
+    .critical-message { color: var(--fg); font-size: 18px; line-height: 1.5; }
+    .critical-message strong { display: block; margin-bottom: 8px; font-size: 14px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+
+    details.sources { margin-top: 16px; border-top: 1px solid var(--border); }
+    details.sources summary {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: max-content;
+      color: var(--fg);
+      font-weight: 500;
+      cursor: pointer;
+      list-style: none;
+    }
+    details.sources summary::-webkit-details-marker { display: none; }
+    .chevron { width: 16px; height: 16px; transition: transform 220ms var(--ease-out); }
+    details[open] .chevron { transform: rotate(180deg); }
+    .source-list { display: grid; gap: 24px; padding: 8px 0 24px; }
+    .source-item { padding-top: 16px; border-top: 1px solid var(--border); }
+    .source-item:focus { outline: 2px solid var(--accent); outline-offset: 4px; }
+    .source-item:first-child { border-top: 0; padding-top: 0; }
+    .source-title { margin: 0 0 4px; font-weight: 600; }
+    .source-meta { margin: 0 0 8px; color: var(--muted); font-size: 14px; }
+    .source-excerpt { margin: 0; max-width: 68ch; }
+    .answer-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+    .action-button[aria-pressed="true"]::before { content: "✓ "; }
+    .feedback-followup {
+      display: none;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+    .feedback-followup.visible { display: block; }
+    .feedback-followup p { margin: 0 0 12px; color: var(--muted); }
+    .feedback-comment {
+      width: 100%;
+      min-height: 88px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    .docked-composer {
+      position: fixed;
+      z-index: 15;
+      left: 64px;
+      right: 0;
+      bottom: 0;
+      padding: 16px 24px max(12px, env(safe-area-inset-bottom));
+      background: var(--bg);
+      border-top: 1px solid var(--border);
+    }
+    .docked-inner { width: min(100%, 720px); margin: 0 auto; }
+    .docked-composer .composer-shell { margin-top: 0; }
+    .docked-composer .demo-policy { margin-top: 8px; text-align: center; }
+
+    .menu-scrim {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      display: block;
+      opacity: 0;
+      pointer-events: none;
+      background: color-mix(in oklch, var(--fg) 18%, transparent);
+      transition: opacity 240ms var(--ease-out);
+    }
+    .menu-scrim.open { opacity: 1; pointer-events: auto; }
+    .mobile-menu {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: min(360px, calc(100vw - 32px));
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 32px;
+      overflow: auto;
+      padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+      border-right: 1px solid var(--border);
+      background: var(--surface);
+      box-shadow: 18px 0 42px color-mix(in oklch, var(--fg) 12%, transparent);
+      transform: translateX(-100%);
+      transition: transform 280ms var(--ease-out);
+    }
+    .menu-scrim.open .mobile-menu { transform: translateX(0); }
+    .mobile-menu-top, .mobile-menu-bottom { display: grid; gap: 8px; }
+    .mobile-menu-header {
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      padding-left: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .menu-close {
+      width: 44px !important;
+      min-height: 44px !important;
+      justify-content: center;
+      padding: 0 !important;
+    }
+    .mobile-menu button {
+      width: 100%;
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 12px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--fg);
+      text-align: left;
+      cursor: pointer;
+    }
+    .mobile-menu button:hover { background: var(--accent-soft); color: var(--accent); }
+    .mobile-menu .primary-menu-action {
+      border: 1px solid var(--border);
+      background: var(--bg);
+      font-weight: 600;
+    }
+    .theme-switch { justify-content: space-between; }
+    .theme-switch-label { display: inline-flex; align-items: center; gap: 12px; }
+    .theme-switch-label .theme-sun,
+    .theme-switch-label .theme-moon {
+      transform-origin: 12px 12px;
+      transition: opacity 180ms linear, transform 320ms var(--ease-out);
+    }
+    .theme-switch-label .theme-sun { opacity: 0; transform: rotate(-70deg) scale(.55); }
+    .theme-switch-label .theme-moon { opacity: 1; transform: rotate(0) scale(1); }
+    .theme-switch[aria-checked="true"] .theme-switch-label .theme-sun { opacity: 1; transform: rotate(0) scale(1); }
+    .theme-switch[aria-checked="true"] .theme-switch-label .theme-moon { opacity: 0; transform: rotate(70deg) scale(.55); }
+    .switch-track {
+      width: 40px;
+      height: 24px;
+      flex: 0 0 auto;
+      padding: 3px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--bg);
+      transition: background-color 220ms var(--ease-out), border-color 220ms var(--ease-out);
+    }
+    .switch-thumb {
+      display: block;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--muted);
+      transform: translateX(0);
+      transition: transform 220ms var(--ease-out), background-color 220ms var(--ease-out);
+    }
+    .theme-switch[aria-checked="true"] .switch-track { border-color: var(--accent); background: var(--accent); }
+    .theme-switch[aria-checked="true"] .switch-thumb { background: var(--surface); transform: translateX(16px); }
+
+    @media (max-width: 1023px) {
+      .rail { display: none; }
+      .mobile-header {
+        position: sticky;
+        top: 26px;
+        z-index: 30;
+        height: 64px;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        padding: max(10px, env(safe-area-inset-top)) 24px 10px;
+        background: var(--bg);
+        border-bottom: 1px solid var(--border);
+      }
+      .menu-button {
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 10px;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        font-weight: 500;
+        letter-spacing: .02em;
+        cursor: pointer;
+      }
+      main { margin-left: 0; min-height: calc(100dvh - 64px); }
+      .initial-view { min-height: calc(100dvh - 64px); padding: 48px 24px; }
+      .sphere-wrap { width: 180px; height: 180px; }
+      h1 { margin-top: 32px; }
+      .composer-shell { margin-top: 24px; }
+      .approved-notice { margin-top: 16px; }
+      .demo-policy { margin-top: 12px; }
+      .conversation { padding-top: 48px; }
+      .docked-composer { left: 0; }
+    }
+
+    @media (max-width: 767px) {
+      .mobile-header { padding-inline: 16px; }
+      .initial-view { padding: 32px 16px; align-items: start; }
+      .initial-stack { padding-top: clamp(12px, 6vh, 48px); }
+      .sphere-wrap { width: 140px; height: 140px; }
+      h1 { margin-top: 32px; font-size: 28px; }
+      .composer { gap: 8px; padding-left: 12px; }
+      .chat-view { padding-bottom: 194px; }
+      .conversation { padding: 32px 16px 40px; }
+      .user-query { width: 100%; }
+      .docked-composer { padding: 12px 16px max(10px, env(safe-area-inset-bottom)); }
+      .session-notice { align-items: flex-start; flex-direction: column; }
+    }
+
+    @media (max-width: 1023px) {
+      [data-od-id="initial-composer"] {
+        position: fixed;
+        z-index: 15;
+        right: 16px;
+        bottom: max(12px, env(safe-area-inset-bottom));
+        left: 16px;
+        width: auto;
+        margin: 0;
+      }
+      [data-od-id="initial-session"] { padding-bottom: 208px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+      .chevron { transition: none; }
+      .progress-line::after { transform: translateX(24px); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <div class="vr-banner" role="status" aria-live="polite" data-od-id="visual-reference-banner">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 10v4M12 17.5h.01"/></svg>
+      <span>Referencia visual no funcional. No ingresar datos reales, corporativos, personales ni sensibles.</span>
+    </div>
+    <nav class="rail" aria-label="Navegación principal" data-od-id="desktop-navigation">
+      <button class="icon-button" id="new-chat-rail" type="button" aria-label="Nuevo chat" title="Nuevo chat" data-od-id="new-chat-rail">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+      <div class="rail-group">
+        <button class="icon-button" type="button" data-menu-action="help" aria-label="Ayuda y alcance" title="Ayuda y alcance" data-od-id="help-rail"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M9.8 9a2.4 2.4 0 1 1 3.4 2.2c-.8.4-1.2.9-1.2 1.8M12 16.5h.01"/></svg></button>
+        <button class="icon-button" type="button" data-menu-action="theme" aria-label="Cambiar tema" title="Cambiar tema" data-od-id="theme-rail">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <g class="theme-moon"><path d="M20 15.2A8 8 0 0 1 8.8 4a8 8 0 1 0 11.2 11.2Z"/></g>
+            <g class="theme-sun"><circle cx="12" cy="12" r="3.5"/><path d="M12 2.5v2M12 19.5v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2.5 12h2M19.5 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></g>
+          </svg>
+        </button>
+        <button class="icon-button" type="button" data-menu-action="profile" aria-label="Perfil" title="Perfil" data-od-id="profile-rail"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/></svg></button>
+      </div>
+    </nav>
+
+    <header class="mobile-header" data-od-id="mobile-header">
+      <button class="menu-button" id="menu-open" type="button" aria-expanded="false" aria-controls="menu-scrim" data-od-id="menu-button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        <span>Menú</span>
+      </button>
+    </header>
+
+    <main data-od-id="main-chat-screen">
+      <section class="initial-view" id="initial-view" aria-labelledby="initial-heading" data-od-id="initial-session">
+        <div class="initial-stack">
+          <div class="sphere-wrap" id="sphere-wrap" aria-hidden="true" data-od-id="particle-sphere">
+            <canvas id="sphere"></canvas>
+          </div>
+          <h1 id="initial-heading" data-od-id="initial-heading">¿Qué desea consultar hoy?</h1>
+          <div class="composer-shell" data-od-id="initial-composer">
+            <div class="composer">
+              <label class="sr-only" for="initial-input">Consulta técnica</label>
+              <textarea id="initial-input" rows="1" placeholder="¿Cuál es el procedimiento para escalar una incidencia de infraestructura fuera del horario laboral?"></textarea>
+              <button class="send-button" id="initial-send" type="button" aria-label="Enviar consulta" data-od-id="initial-send" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 5 16 7-16 7 3-7-3-7Z"/><path d="M7 12h13"/></svg>
+              </button>
+            </div>
+          </div>
+          <p class="approved-notice" data-od-id="approved-sources-notice">Solo se responde con fuentes aprobadas. Sin evidencia, se recomienda consultar a un especialista.</p>
+          <p class="aux-notice" id="initial-aux-notice" role="status" data-od-id="initial-aux-notice"></p>
+        </div>
+      </section>
+
+      <section class="chat-view" id="chat-view" aria-label="Conversación activa" aria-busy="false" data-od-id="active-conversation">
+        <div class="conversation" id="conversation">
+          <div class="session-notice" id="session-notice" role="status" data-od-id="session-notice">
+            <span id="session-notice-text"></span>
+            <button class="inline-button" id="session-notice-action" type="button"></button>
+          </div>
+          <div id="messages" aria-live="polite"></div>
+        </div>
+        <div class="docked-composer" data-od-id="docked-composer">
+          <div class="docked-inner">
+            <div class="composer-shell">
+              <div class="composer">
+                <label class="sr-only" for="chat-input">Consulta técnica</label>
+                <textarea id="chat-input" rows="1" placeholder="Consulta técnica…"></textarea>
+                <button class="send-button" id="chat-send" type="button" aria-label="Enviar consulta" data-od-id="chat-send" disabled>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 5 16 7-16 7 3-7-3-7Z"/><path d="M7 12h13"/></svg>
+                </button>
+              </div>
+            </div>
+            <p class="demo-policy" data-od-id="active-demo-policy">Entorno de demostración. No corporativo. Las consultas y respuestas son solo de muestra.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div class="menu-scrim" id="menu-scrim" aria-hidden="true" inert>
+      <nav class="mobile-menu" aria-label="Menú principal" data-od-id="mobile-menu">
+        <div class="mobile-menu-top">
+          <div class="mobile-menu-header">
+            <span class="wordmark" data-od-id="opsknowledge-wordmark">OpsKnowledge</span>
+            <button class="menu-close" id="menu-close" type="button" aria-label="Cerrar menú" data-od-id="mobile-menu-close">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+            </button>
+          </div>
+          <button class="primary-menu-action" type="button" data-menu-action="new" data-od-id="mobile-new-chat">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            <span>Nuevo chat</span>
+          </button>
+        </div>
+        <div class="mobile-menu-bottom">
+          <button type="button" data-menu-action="help" data-od-id="mobile-help">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M9.8 9a2.4 2.4 0 1 1 3.4 2.2c-.8.4-1.2.9-1.2 1.8M12 16.5h.01"/></svg>
+            <span>Ayuda y alcance</span>
+          </button>
+          <button class="theme-switch" id="theme-switch" type="button" role="switch" aria-checked="false" data-od-id="mobile-theme">
+            <span class="theme-switch-label">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <g class="theme-moon"><path d="M20 15.2A8 8 0 0 1 8.8 4a8 8 0 1 0 11.2 11.2Z"/></g>
+                <g class="theme-sun"><circle cx="12" cy="12" r="3.5"/><path d="M12 2.5v2M12 19.5v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2.5 12h2M19.5 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></g>
+              </svg>
+              <span>Modo oscuro</span>
+            </span>
+            <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+          </button>
+          <button type="button" data-menu-action="profile" data-od-id="mobile-profile">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/></svg>
+            <span>Perfil</span>
+          </button>
+        </div>
+      </nav>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const examples = [
+        "¿Cuál es el procedimiento para escalar una incidencia de infraestructura fuera del horario laboral?",
+        "¿Qué decisión de arquitectura se tomó para el almacenamiento de los índices de búsqueda?",
+        "¿Qué dice la política vigente sobre la retención de las consultas realizadas?"
+      ];
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+      const initialView = document.getElementById("initial-view");
+      const chatView = document.getElementById("chat-view");
+      const initialInput = document.getElementById("initial-input");
+      const chatInput = document.getElementById("chat-input");
+      const initialSend = document.getElementById("initial-send");
+      const chatSend = document.getElementById("chat-send");
+      const dockedComposer = document.querySelector(".docked-composer");
+      const messages = document.getElementById("messages");
+      const conversation = document.getElementById("conversation");
+      const sessionNotice = document.getElementById("session-notice");
+      const sessionNoticeText = document.getElementById("session-notice-text");
+      const sessionNoticeAction = document.getElementById("session-notice-action");
+      const initialAuxNotice = document.getElementById("initial-aux-notice");
+      const sendIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 5 16 7-16 7 3-7-3-7Z"/><path d="M7 12h13"/></svg>`;
+      const stopIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>`;
+      let active = false;
+      let generating = false;
+      let generationTimer = 0;
+      let timeoutTimer = 0;
+      let placeholderTimer = 0;
+      let placeholderIndex = 0;
+      let questionCount = 0;
+      let sphereRedraw = () => {};
+
+      function escapeHtml(value) {
+        return value.replace(/[&<>"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[char]));
+      }
+
+      function resizeTextarea(input) {
+        input.style.height = "auto";
+        input.style.height = Math.min(input.scrollHeight, 132) + "px";
+      }
+
+      function updateSendAvailability() {
+        initialSend.disabled = !initialInput.value.trim();
+        if (!generating) chatSend.disabled = !chatInput.value.trim() || questionCount >= 20;
+      }
+
+      const placeholderMeasure = document.createElement("canvas").getContext("2d");
+      function resizeInitialPlaceholder() {
+        if (initialInput.value || !placeholderMeasure || initialInput.clientWidth === 0) {
+          resizeTextarea(initialInput);
+          return;
+        }
+        const styles = getComputedStyle(initialInput);
+        const lineHeight = parseFloat(styles.lineHeight);
+        const verticalPadding = parseFloat(styles.paddingTop) + parseFloat(styles.paddingBottom);
+        const availableWidth = initialInput.clientWidth;
+        placeholderMeasure.font = `${styles.fontWeight} ${styles.fontSize} ${styles.fontFamily}`;
+        let lines = 1;
+        let lineWidth = 0;
+        initialInput.placeholder.split(/\s+/).forEach(word => {
+          const wordWidth = placeholderMeasure.measureText((lineWidth ? " " : "") + word).width;
+          if (lineWidth > 0 && lineWidth + wordWidth > availableWidth) {
+            lines += 1;
+            lineWidth = placeholderMeasure.measureText(word).width;
+          } else {
+            lineWidth += wordWidth;
+          }
+        });
+        initialInput.style.height = Math.min(132, Math.max(44, Math.ceil(lines * lineHeight + verticalPadding))) + "px";
+      }
+
+      [initialInput, chatInput].forEach(input => {
+        input.addEventListener("input", () => {
+          if (input === initialInput && !input.value) resizeInitialPlaceholder();
+          else resizeTextarea(input);
+          updateSendAvailability();
+        });
+        input.addEventListener("keydown", event => {
+          if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            if (input === initialInput) startQuestion(initialInput.value);
+            else if (generating) stopGeneration();
+            else startQuestion(chatInput.value);
+          }
+        });
+      });
+
+      function startPlaceholderRotation() {
+        if (reduceMotion.matches) return;
+        clearInterval(placeholderTimer);
+        placeholderTimer = window.setInterval(() => {
+          if (document.activeElement === initialInput || initialInput.value) return;
+          initialInput.classList.add("placeholder-fade");
+          window.setTimeout(() => {
+            placeholderIndex = (placeholderIndex + 1) % examples.length;
+            initialInput.placeholder = examples[placeholderIndex];
+            resizeInitialPlaceholder();
+            initialInput.classList.remove("placeholder-fade");
+          }, 220);
+        }, 4500);
+      }
+
+      function handleReducedMotionPreference() {
+        clearInterval(placeholderTimer);
+        initialInput.classList.remove("placeholder-fade");
+        if (reduceMotion.matches) {
+          placeholderIndex = 0;
+          initialInput.placeholder = examples[0];
+          resizeInitialPlaceholder();
+        } else if (!active && document.activeElement !== initialInput && !initialInput.value) {
+          startPlaceholderRotation();
+        }
+      }
+      reduceMotion.addEventListener("change", handleReducedMotionPreference);
+
+      initialInput.addEventListener("focus", () => clearInterval(placeholderTimer));
+      initialInput.addEventListener("blur", () => {
+        if (!initialInput.value && !active) {
+          resizeInitialPlaceholder();
+          startPlaceholderRotation();
+        }
+      });
+      window.addEventListener("resize", resizeInitialPlaceholder);
+      initialSend.addEventListener("click", () => startQuestion(initialInput.value));
+      chatSend.addEventListener("click", () => generating ? stopGeneration() : startQuestion(chatInput.value));
+
+      function activateChat() {
+        if (active) return Promise.resolve();
+        active = true;
+        clearInterval(placeholderTimer);
+        initialView.classList.add("leaving");
+        return new Promise(resolve => {
+          window.setTimeout(() => {
+            initialView.hidden = true;
+            chatView.classList.add("active");
+            resolve();
+          }, reduceMotion.matches ? 0 : 300);
+        });
+      }
+
+      function userBlock(query) {
+        const group = document.createElement("article");
+        group.className = "message-group";
+        group.dataset.odId = "user-query-" + (questionCount + 1);
+        group.innerHTML = `<p class="message-label">Consulta</p><p class="user-query">${escapeHtml(query)}</p>`;
+        messages.appendChild(group);
+      }
+
+      function generationBlock() {
+        const group = document.createElement("article");
+        group.className = "message-group";
+        group.id = "generation-block";
+        group.setAttribute("aria-live", "polite");
+        group.innerHTML = `<div class="generation-state"><span>Generando respuesta…</span><div class="progress-line" aria-hidden="true"></div></div>`;
+        messages.appendChild(group);
+      }
+
+      function scrollToLatest() {
+        window.requestAnimationFrame(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: reduceMotion.matches ? "auto" : "smooth" }));
+      }
+
+      async function startQuestion(rawQuery) {
+        const query = rawQuery.trim();
+        if (!query || generating) return;
+        const startingNewSession = !active;
+        await activateChat();
+        chatInput.value = "";
+        initialInput.value = "";
+        resizeTextarea(chatInput);
+        updateSendAvailability();
+        const sensitive = isSensitive(query);
+        if (!sensitive) userBlock(query);
+        questionCount += 1;
+
+        if (sensitive) {
+          renderCritical("Consulta bloqueada", "La consulta fue bloqueada por contener información sensible. No se procesó ni se almacenó.", true);
+          updateQuestionLimit();
+          chatInput.focus({ preventScroll: true });
+          scrollToLatest();
+          return;
+        }
+
+        generating = true;
+        generationBlock();
+        setGeneratingControls(true);
+        if (startingNewSession) chatSend.focus({ preventScroll: true });
+        scrollToLatest();
+
+        const providerTest = /proveedor|timeout|no disponible/i.test(query);
+        generationTimer = window.setTimeout(() => {
+          if (!generating || providerTest) return;
+          finishGeneration(query);
+        }, 1600);
+        timeoutTimer = window.setTimeout(() => {
+          if (!generating) return;
+          clearGeneration();
+          renderCritical("Proveedor no disponible", "El proveedor de generación no está disponible. No se persistió ninguna respuesta. Se recomienda consultar a un especialista.", true);
+          updateQuestionLimit();
+          scrollToLatest();
+        }, 10000);
+      }
+
+      function isSensitive(query) {
+        return /\b(dni|pasaporte|tarjeta|contraseña|historia clínica|paciente|número de cuenta)\b/i.test(query);
+      }
+
+      function setGeneratingControls(value) {
+        chatSend.innerHTML = value ? stopIcon : sendIcon;
+        chatSend.classList.toggle("stop", value);
+        chatSend.setAttribute("aria-label", value ? "Detener generación" : "Enviar consulta");
+        chatView.setAttribute("aria-busy", String(value));
+        if (value) chatSend.disabled = false;
+        else updateSendAvailability();
+      }
+
+      function clearGeneration() {
+        generating = false;
+        clearTimeout(generationTimer);
+        clearTimeout(timeoutTimer);
+        document.getElementById("generation-block")?.remove();
+        setGeneratingControls(false);
+        chatInput.focus({ preventScroll: true });
+      }
+
+      function stopGeneration() {
+        if (!generating) return;
+        clearGeneration();
+        const group = document.createElement("article");
+        group.className = "message-group";
+        group.innerHTML = `<p class="critical-message">La generación se detuvo. No se persistió ninguna respuesta.</p>`;
+        messages.appendChild(group);
+        scrollToLatest();
+      }
+
+      function finishGeneration(query) {
+        clearGeneration();
+        if (/sin evidencia|fuera de alcance|contradictoria|desconocid/i.test(query)) {
+          renderCritical("Evidencia no verificada", "No se pudo verificar esta información en las fuentes aprobadas. Se recomienda consultar a un especialista.", false);
+        } else {
+          renderAnswer();
+        }
+        updateQuestionLimit();
+        scrollToLatest();
+      }
+
+      function renderAnswer(openSources = false) {
+        const group = document.createElement("article");
+        group.className = "message-group";
+        group.dataset.odId = "assistant-answer-" + questionCount;
+        group.innerHTML = `
+          <div class="answer-block" id="answer-${questionCount}">
+            <p>El procedimiento vigente indica registrar la incidencia en el canal operativo y clasificar su impacto antes de iniciar el escalado.<a class="citation" href="#source-1-${questionCount}" aria-label="Fuente 1">1</a></p>
+            <p>Fuera del horario laboral, la ruta de guardia se activa según la severidad documentada y mantiene un registro de las decisiones adoptadas.<a class="citation" href="#source-2-${questionCount}" aria-label="Fuente 2">2</a></p>
+          </div>
+          <details class="sources" ${openSources ? "open" : ""} data-od-id="sources-${questionCount}">
+            <summary><svg class="chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Fuentes · 2</summary>
+            <div class="source-list">
+              <section class="source-item" id="source-1-${questionCount}"><h2 class="source-title">Runbook de gestión de incidencias</h2><p class="source-meta">Revisión 4 · Página 12</p><p class="source-excerpt">“Toda incidencia debe registrarse y clasificarse por impacto antes de activar la ruta de escalado correspondiente.”</p></section>
+              <section class="source-item" id="source-2-${questionCount}"><h2 class="source-title">Política de guardias operativas</h2><p class="source-meta">Revisión 2 · Página 7</p><p class="source-excerpt">“La guardia fuera de horario se activa según la severidad documentada y conserva el registro de las decisiones operativas.”</p></section>
+            </div>
+          </details>
+          <div class="answer-actions" aria-label="Acciones de respuesta">
+            <button class="action-button" type="button" data-action="copy">Copiar</button>
+            <button class="action-button" type="button" data-action="useful" aria-pressed="false">Útil</button>
+            <button class="action-button" type="button" data-action="not-useful" aria-pressed="false">No útil</button>
+          </div>
+          <div class="feedback-followup">
+            <p>Para una revisión adicional, se recomienda contactar con soporte especializado. El comentario es opcional.</p>
+            <label class="sr-only" for="feedback-${questionCount}">Comentario opcional</label>
+            <textarea class="feedback-comment" id="feedback-${questionCount}" placeholder="Comentario opcional"></textarea>
+          </div>`;
+        bindAnswerActions(group);
+        messages.appendChild(group);
+      }
+
+      function renderCritical(label, copy, assertive) {
+        const group = document.createElement("article");
+        group.className = "message-group";
+        group.setAttribute("role", assertive ? "alert" : "status");
+        group.setAttribute("aria-live", assertive ? "assertive" : "polite");
+        group.innerHTML = `<p class="critical-message"><strong>${escapeHtml(label)}</strong>${escapeHtml(copy)}</p><div class="answer-actions"><button class="action-button" type="button" data-action="copy-critical">Copiar</button></div>`;
+        group.querySelector("[data-action='copy-critical']").addEventListener("click", event => copyText(copy, event.currentTarget));
+        messages.appendChild(group);
+      }
+
+      function bindAnswerActions(group) {
+        const answerText = Array.from(group.querySelectorAll(".answer-block p")).map(p => p.textContent).join("\n\n");
+        const sources = group.querySelector("details.sources");
+        const copy = group.querySelector("[data-action='copy']");
+        const useful = group.querySelector("[data-action='useful']");
+        const notUseful = group.querySelector("[data-action='not-useful']");
+        const followup = group.querySelector(".feedback-followup");
+        copy.addEventListener("click", () => copyText(answerText, copy));
+        group.querySelectorAll(".citation").forEach(citation => {
+          citation.addEventListener("click", event => {
+            event.preventDefault();
+            sources.open = true;
+            const target = group.querySelector(citation.getAttribute("href"));
+            target?.setAttribute("tabindex", "-1");
+            target?.focus({ preventScroll: true });
+          });
+        });
+        useful.addEventListener("click", () => {
+          useful.setAttribute("aria-pressed", "true");
+          notUseful.setAttribute("aria-pressed", "false");
+          followup.classList.remove("visible");
+        });
+        notUseful.addEventListener("click", () => {
+          notUseful.setAttribute("aria-pressed", "true");
+          useful.setAttribute("aria-pressed", "false");
+          followup.classList.add("visible");
+          followup.querySelector("textarea").focus();
+        });
+      }
+
+      async function copyText(text, button) {
+        try {
+          await navigator.clipboard.writeText(text);
+          const previous = button.textContent;
+          button.textContent = "Copiado";
+          window.setTimeout(() => { button.textContent = previous; }, 1400);
+        } catch (_) {
+          button.textContent = "No disponible";
+        }
+      }
+
+      function updateQuestionLimit() {
+        const remaining = 20 - questionCount;
+        if (remaining <= 0) {
+          showSessionNotice("Se alcanzó el límite de consultas de la sesión. Se recomienda iniciar un nuevo chat.", "Nuevo chat", resetSession);
+          chatInput.disabled = true;
+          chatSend.disabled = true;
+        } else if (remaining <= 2) {
+          showSessionNotice(`Quedan ${remaining} consultas disponibles en esta sesión.`, "", null);
+        }
+      }
+
+      function showSessionNotice(text, actionLabel, handler) {
+        sessionNoticeText.textContent = text;
+        sessionNoticeAction.textContent = actionLabel;
+        sessionNoticeAction.hidden = !actionLabel;
+        sessionNoticeAction.onclick = handler;
+        sessionNotice.classList.add("visible");
+      }
+
+      function resetSession() {
+        stopGeneration();
+        messages.innerHTML = "";
+        questionCount = 0;
+        active = false;
+        chatView.classList.remove("active");
+        initialView.hidden = false;
+        initialView.classList.remove("leaving");
+        requestAnimationFrame(resizeInitialPlaceholder);
+        sessionNotice.classList.remove("visible");
+        initialAuxNotice.classList.remove("visible");
+        chatInput.disabled = false;
+        updateSendAvailability();
+        initialInput.focus();
+        startPlaceholderRotation();
+        closeMenu(false);
+      }
+
+      function expireSession() {
+        messages.innerHTML = "";
+        questionCount = 0;
+        showSessionNotice("La sesión expiró por inactividad. El contexto de la conversación se eliminó. Para continuar, iniciar una nueva consulta.", "", null);
+        chatInput.disabled = false;
+        updateSendAvailability();
+        chatInput.focus({ preventScroll: true });
+      }
+
+      document.getElementById("new-chat-rail").addEventListener("click", resetSession);
+
+      const menuScrim = document.getElementById("menu-scrim");
+      const menuOpen = document.getElementById("menu-open");
+      const menuClose = document.getElementById("menu-close");
+      const themeSwitch = document.getElementById("theme-switch");
+      const mainContent = document.querySelector("main");
+      const mobileHeader = document.querySelector(".mobile-header");
+      const themeRail = document.querySelector("[data-menu-action='theme']");
+      const THEME_STORE = "opsknowledge:theme";
+      let bodyOverflowBeforeMenu = "";
+
+      function applyTheme(theme, persist = true) {
+        const dark = theme === "dark";
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+        themeSwitch.setAttribute("aria-checked", String(dark));
+        themeRail.setAttribute("aria-label", dark ? "Cambiar a modo claro" : "Cambiar a modo oscuro");
+        themeRail.setAttribute("title", dark ? "Cambiar a modo claro" : "Cambiar a modo oscuro");
+        initialAuxNotice.textContent = "";
+        initialAuxNotice.classList.remove("visible");
+        if (persist) {
+          try { localStorage.setItem(THEME_STORE, dark ? "dark" : "light"); } catch (_) {}
+        }
+        sphereRedraw();
+      }
+
+      function toggleTheme() {
+        applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+      }
+
+      function openMenu() {
+        menuScrim.inert = false;
+        menuScrim.classList.add("open");
+        menuScrim.setAttribute("aria-hidden", "false");
+        menuOpen.setAttribute("aria-expanded", "true");
+        mainContent.inert = true;
+        mobileHeader.inert = true;
+        bodyOverflowBeforeMenu = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        menuScrim.querySelector("[data-menu-action='new']").focus();
+      }
+      function closeMenu(restoreFocus = true) {
+        if (!menuScrim.classList.contains("open")) return;
+        menuScrim.classList.remove("open");
+        menuScrim.setAttribute("aria-hidden", "true");
+        menuScrim.inert = true;
+        menuOpen.setAttribute("aria-expanded", "false");
+        mainContent.inert = false;
+        mobileHeader.inert = false;
+        document.body.style.overflow = bodyOverflowBeforeMenu;
+        if (restoreFocus) menuOpen.focus();
+      }
+      menuOpen.addEventListener("click", openMenu);
+      menuClose.addEventListener("click", () => closeMenu());
+      themeSwitch.addEventListener("click", toggleTheme);
+      menuScrim.addEventListener("click", event => { if (event.target === menuScrim) closeMenu(); });
+      menuScrim.addEventListener("keydown", event => {
+        if (event.key !== "Tab" || !menuScrim.classList.contains("open")) return;
+        const controls = Array.from(menuScrim.querySelectorAll("button:not([disabled])"));
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      });
+      document.addEventListener("keydown", event => { if (event.key === "Escape") closeMenu(); });
+      document.querySelectorAll("[data-menu-action]").forEach(button => {
+        button.addEventListener("click", () => {
+          const action = button.dataset.menuAction;
+          if (action === "new") {
+            resetSession();
+            return;
+          }
+          if (action === "theme") {
+            toggleTheme();
+            return;
+          }
+          const copy = action === "help"
+            ? "OpsKnowledge responde únicamente con evidencia de fuentes aprobadas. Cuando la evidencia no es suficiente, recomienda una revisión especializada."
+            : action === "profile"
+                ? "La gestión del perfil no está disponible en esta demostración."
+                : "";
+          if (copy && active) showSessionNotice(copy, "", null);
+          if (copy && !active) {
+            initialAuxNotice.textContent = copy;
+            initialAuxNotice.classList.add("visible");
+          }
+          closeMenu();
+        });
+      });
+
+      let savedTheme = "light";
+      try { savedTheme = localStorage.getItem(THEME_STORE) === "dark" ? "dark" : "light"; } catch (_) {}
+      applyTheme(savedTheme, false);
+
+      function initSphere() {
+        const canvas = document.getElementById("sphere");
+        const wrap = document.getElementById("sphere-wrap");
+        const coarse = window.matchMedia("(pointer: coarse)").matches;
+        const lowPower = coarse || (navigator.deviceMemory && navigator.deviceMemory <= 4);
+        if (!canvas.getContext || lowPower) {
+          canvas.replaceWith(Object.assign(document.createElement("div"), { className: "sphere-fallback" }));
+          return;
+        }
+        const context = canvas.getContext("2d");
+        if (!context) {
+          canvas.replaceWith(Object.assign(document.createElement("div"), { className: "sphere-fallback" }));
+          return;
+        }
+        const count = window.innerWidth < 768 ? 800 : 1500;
+        const points = [];
+        const golden = Math.PI * (3 - Math.sqrt(5));
+        for (let i = 0; i < count; i += 1) {
+          const y = 1 - (i / (count - 1)) * 2;
+          const radius = Math.sqrt(1 - y * y);
+          const theta = golden * i;
+          points.push({ x: Math.cos(theta) * radius, y, z: Math.sin(theta) * radius });
+        }
+        let width = 0;
+        let height = 0;
+        let rotation = 0;
+        let frame = 0;
+        let hidden = document.hidden;
+        const pointer = {
+          x: width / 2,
+          y: height / 2,
+          targetX: width / 2,
+          targetY: height / 2,
+          influence: 0,
+          targetInfluence: 0,
+          pulse: 0
+        };
+        function resize() {
+          const rect = wrap.getBoundingClientRect();
+          width = rect.width;
+          height = rect.height;
+          const dpr = Math.min(window.devicePixelRatio || 1, 2);
+          canvas.width = Math.max(1, width * dpr);
+          canvas.height = Math.max(1, height * dpr);
+          canvas.style.width = width + "px";
+          canvas.style.height = height + "px";
+          context.setTransform(dpr, 0, 0, dpr, 0, 0);
+          draw();
+        }
+        function draw() {
+          context.clearRect(0, 0, width, height);
+          context.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+          const cosine = Math.cos(rotation);
+          const sine = Math.sin(rotation);
+          const scale = width * .39;
+          points.forEach(point => {
+            const x = point.x * cosine - point.z * sine;
+            const z = point.x * sine + point.z * cosine;
+            const sx = width / 2 + x * scale;
+            const sy = height / 2 - point.y * scale;
+            const dx = sx - pointer.x;
+            const dy = sy - pointer.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const proximity = Math.max(0, Math.min(1, 1 - dist / 50));
+            const smoothProximity = proximity * proximity * (3 - 2 * proximity);
+            const repulse = smoothProximity * .18 * pointer.influence;
+            const pulse = pointer.pulse * .25;
+            const factor = 1 + repulse + pulse;
+            const px = width / 2 + x * scale * factor;
+            const py = height / 2 - point.y * scale * factor;
+            context.globalAlpha = .24 + ((z + 1) / 2) * .68;
+            context.beginPath();
+            context.arc(px, py, Math.max(.55, width / 150), 0, Math.PI * 2);
+            context.fill();
+          });
+          context.globalAlpha = 1;
+        }
+        sphereRedraw = draw;
+        function tick() {
+          if (!hidden && !reduceMotion.matches) {
+            rotation += .00125;
+            pointer.x += (pointer.targetX - pointer.x) * .18;
+            pointer.y += (pointer.targetY - pointer.y) * .18;
+            pointer.influence += (pointer.targetInfluence - pointer.influence) * .12;
+            if (pointer.influence < .001 && pointer.targetInfluence === 0) pointer.influence = 0;
+            pointer.pulse *= .92;
+            draw();
+          }
+          frame = requestAnimationFrame(tick);
+        }
+        function handleSphereMotionPreference() {
+          cancelAnimationFrame(frame);
+          if (reduceMotion.matches) draw();
+          else frame = requestAnimationFrame(tick);
+        }
+        canvas.addEventListener("pointermove", event => {
+          const rect = canvas.getBoundingClientRect();
+          pointer.targetX = event.clientX - rect.left;
+          pointer.targetY = event.clientY - rect.top;
+          if (pointer.influence === 0) {
+            pointer.x = pointer.targetX;
+            pointer.y = pointer.targetY;
+          }
+          pointer.targetInfluence = 1;
+        }, { passive: true });
+        canvas.addEventListener("pointerdown", event => {
+          const rect = canvas.getBoundingClientRect();
+          pointer.targetX = event.clientX - rect.left;
+          pointer.targetY = event.clientY - rect.top;
+          pointer.targetInfluence = 1;
+          pointer.pulse = 1;
+        }, { passive: true });
+        canvas.addEventListener("pointerleave", () => { pointer.targetInfluence = 0; }, { passive: true });
+        document.addEventListener("visibilitychange", () => { hidden = document.hidden; });
+        reduceMotion.addEventListener("change", handleSphereMotionPreference);
+        new ResizeObserver(resize).observe(wrap);
+        resize();
+        if (reduceMotion.matches) draw(); else frame = requestAnimationFrame(tick);
+        window.addEventListener("pagehide", () => {
+          cancelAnimationFrame(frame);
+          reduceMotion.removeEventListener("change", handleSphereMotionPreference);
+        }, { once: true });
+      }
+
+      function applyPreviewState() {
+        const state = new URLSearchParams(location.search).get("state") || location.hash.replace("#state=", "");
+        if (!state) return;
+        activateChat().then(() => {
+          if (state === "answer") { questionCount = 1; userBlock(examples[0]); renderAnswer(false); }
+          if (state === "sources") { questionCount = 1; userBlock(examples[0]); renderAnswer(true); }
+          if (state === "generating") { questionCount = 1; userBlock(examples[0]); generating = true; generationBlock(); setGeneratingControls(true); }
+          if (state === "abstention") renderCritical("Evidencia no verificada", "No se pudo verificar esta información en las fuentes aprobadas. Se recomienda consultar a un especialista.", false);
+          if (state === "provider") renderCritical("Proveedor no disponible", "El proveedor de generación no está disponible. No se persistió ninguna respuesta. Se recomienda consultar a un especialista.", true);
+          if (state === "blocked") renderCritical("Consulta bloqueada", "La consulta fue bloqueada por contener información sensible. No se procesó ni se almacenó.", true);
+          if (state === "inactivity") showSessionNotice("La sesión expirará en 5 minutos por inactividad. Para continuar, seleccionar Extender sesión.", "Extender sesión", () => sessionNotice.classList.remove("visible"));
+          if (state === "limit") showSessionNotice("Quedan 2 consultas disponibles en esta sesión.", "", null);
+          if (state === "reached") { showSessionNotice("Se alcanzó el límite de consultas de la sesión. Se recomienda iniciar un nuevo chat.", "Nuevo chat", resetSession); chatInput.disabled = true; chatSend.disabled = true; }
+          if (state === "expired") expireSession();
+        });
+      }
+
+      initSphere();
+      startPlaceholderRotation();
+      updateSendAvailability();
+      if (typeof ResizeObserver !== "undefined") {
+        new ResizeObserver(entries => {
+          const height = entries[0]?.contentRect.height || 0;
+          if (height > 0) chatView.style.paddingBottom = Math.ceil(height + 32) + "px";
+        }).observe(dockedComposer);
+      }
+      requestAnimationFrame(resizeInitialPlaceholder);
+      applyPreviewState();
+    })();
+  </script>
+</body>
+</html>

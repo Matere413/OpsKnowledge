@@ -1,0 +1,258 @@
+# Direct Production Dependency Evidence Record
+# Governance file for the OpsKnowledge platform.
+#
+# Purpose:
+#   This file is REVIEW EVIDENCE, not an allowlist. CI reconciles the entries
+#   below with the actual direct production dependencies declared in
+#   pyproject.toml / package.json and the lockfiles (uv.lock / pnpm-lock.yaml).
+#   Any direct production dependency that CI finds in a manifest but cannot
+#   match to an entry here fails `make ci`.
+#
+# Rules:
+#   - Only direct production dependencies belong here. Dev/test/lint tools are
+#     tracked by their own manifests and are out of scope for this file.
+#   - Each entry MUST record every required field. Missing fields fail CI.
+#   - An approval decision MUST be one of: approved | pending | rejected |
+#     superseded. "approved" is only valid when the owning change and the
+#     approver are recorded. "pending" is documentation-only: it records that
+#     a dependency is recognized and under review, but it ALWAYS blocks
+#     production runtime import/manifest reconciliation — a pending entry that
+#     appears as a direct production import MUST fail CI.
+#   - Do NOT fabricate manifests, lockfiles, approval metadata, or license
+#     text. Where no decision exists yet, leave the `approval` block at
+#     `decision: pending` and fill the `instructions` field.
+#   - This file does not import packages. It records evidence that an import
+#     is governed.
+#
+# Required fields per entry:
+#   name            : package name as it appears in the manifest
+#   scope           : backend | web | shared | compose
+#   purpose         : one-sentence reason this dependency is a direct production dependency
+#   owning_feature  : feature module that owns the import (e.g. query, indexing, governance)
+#   license         : SPDX identifier or "TBD" when not yet verified
+#   risk            : low | medium | high — with a one-line reason
+#   approval        : decision + approver + date + reference (see schema below)
+#
+# Reconciliation:
+#   CI rule: for every direct production import found in pyproject.toml /
+#   package.json, there MUST be an entry here whose `name` matches and whose
+#   `approval.decision` is `approved`. A `decision: pending` entry is
+#   documentation-only: it MAY be recorded so contributors know the dependency
+#   is under review, but it MUST ALWAYS block production runtime — a pending
+#   entry that appears as a direct production import in a manifest MUST fail CI
+#   and MUST fail runtime import/manifest reconciliation. "pending" never
+#   satisfies reconciliation. Lockfiles MUST be refreshed in the same change
+#   that adds or bumps a dependency. Mismatched lockfiles fail CI.
+#
+# ---------------------------------------------------------------------------
+# Schema
+# ---------------------------------------------------------------------------
+
+schema:
+  version: 1
+  required_fields:
+    - name
+    - scope
+    - purpose
+    - owning_feature
+    - license
+    - risk
+    - approval
+  approval_required_fields:
+    - decision   # approved | pending | rejected | superseded
+    - approver   # person, role, or SDD change reference
+    - date       # ISO-8601, or "TBD" while pending
+    - reference  # SDD change name or decision observation id
+  scopes:
+    - backend    # Python/FastAPI server
+    - web        # React/TypeScript/Vite client
+    - shared     # code or assets shared across backend and web
+    - compose    # Docker Compose orchestration
+  risk_levels:
+    low: "Well-understood, stable, low supply-chain risk."
+    medium: "Usable but needs license/version/compatibility or supply-chain review."
+    high: "Avoid unless a reviewed decision explicitly approves it."
+
+# ---------------------------------------------------------------------------
+# Instructions for contributors
+# ---------------------------------------------------------------------------
+
+instructions: |
+  1. Before adding a direct production dependency, open or extend an SDD
+     change that justifies the dependency.
+  2. Add an entry below this block with every required field. Set
+     approval.decision to "pending" until the change is approved.
+  3. Add the import to pyproject.toml (backend) or package.json (web), then
+     refresh the corresponding lockfile (uv.lock / pnpm-lock.yaml).
+  4. `make ci` will reconcile this file with the manifests and lockfiles.
+     A direct production import with no matching entry, a `decision: pending`
+     entry that appears as a direct production import, or a stale lockfile
+     fails CI. "pending" is documentation-only and ALWAYS blocks production
+     runtime — it never satisfies reconciliation.
+  5. This file is not an allowlist: a matching entry is evidence of governance,
+     not permission to bypass review.
+  6. Do not record dev-only, test-only, lint, or type-check tools here. They
+     are governed by their own manifests and CI rules.
+
+# ---------------------------------------------------------------------------
+# Approved architectural baseline entries
+# ---------------------------------------------------------------------------
+# Only dependencies whose architectural decision already exists are recorded
+# here. Each entry links to the SDD decision that approved the baseline. No
+# package manifest, lockfile, or version pin is fabricated in this file;
+# concrete versions live in pyproject.toml / package.json and the lockfiles,
+# which are produced by bounded implementation changes, not by this planning
+# change.
+
+entries:
+  - name: fastapi
+    scope: backend
+    purpose: HTTP framework exposing non-streaming JSON use-case endpoints.
+    owning_feature: query
+    license: MIT
+    risk:
+      level: low
+      reason: Stable, widely used ASGI framework; no model or data coupling.
+    approval:
+      decision: approved
+      approver: SDD change define-rag-platform-architecture
+      date: 2026-07-14
+      reference: Engram decision observations #3140-#3160; design #3163
+
+  - name: sqlalchemy
+    scope: backend
+    purpose: ORM and SQL expression layer over PostgreSQL.
+    owning_feature: indexing
+    license: MIT
+    risk:
+      level: low
+      reason: Core persistence abstraction; replaceable via port/adapter boundary.
+    approval:
+      decision: approved
+      approver: SDD change define-rag-platform-architecture
+      date: 2026-07-14
+      reference: Engram decision observations #3140-#3160; design #3163
+
+  - name: psycopg
+    scope: backend
+    purpose: PostgreSQL database driver for SQLAlchemy.
+    owning_feature: indexing
+    license: LGPL-2.1-or-later
+    risk:
+      level: medium
+      reason: LGPL driver; license compatibility must be confirmed per corporate policy.
+    approval:
+      decision: approved
+      approver: SDD change define-rag-platform-architecture
+      date: 2026-07-14
+      reference: Engram decision observations #3140-#3160; design #3163
+
+  - name: alembic
+    scope: backend
+    purpose: Schema migrations for PostgreSQL.
+    owning_feature: indexing
+    license: MIT
+    risk:
+      level: low
+      reason: Migration tool; no runtime coupling.
+    approval:
+      decision: approved
+      approver: SDD change define-rag-platform-architecture
+      date: 2026-07-14
+      reference: Engram decision observations #3140-#3160; design #3163
+
+  - name: pgvector
+    scope: backend
+    purpose: PostgreSQL extension for vector similarity search.
+    owning_feature: retrieval
+    license: PostgreSQL License
+    risk:
+      level: low
+      reason: PostgreSQL extension; availability on the corporate target must be TI-gated.
+    approval:
+      decision: approved
+      approver: SDD change define-rag-platform-architecture
+      date: 2026-07-14
+      reference: Engram decision observations #3140-#3160; design #3163
+
+  - name: docling
+    scope: backend
+    purpose: PDF parsing and structure-aware chunking for ingestion.
+    owning_feature: indexing
+    license: MIT
+    risk:
+      level: medium
+      reason: PDF parsing library; OCR quality controls and provenance must be enforced by the feature.
+    approval:
+      decision: approved
+      approver: SDD change define-rag-platform-architecture
+      date: 2026-07-14
+      reference: Engram decision observations #3140-#3160; design #3163
+
+  - name: openai
+    scope: backend
+    purpose: Prototype generation and embedding client (Responses API, text-embedding-3-small).
+    owning_feature: query
+    license: MIT
+    risk:
+      level: high
+      reason: Public provider; prototype-only, synthetic/authorized demo data only, never corporate data.
+    approval:
+      decision: approved
+      approver: SDD change define-rag-platform-architecture
+      date: 2026-07-14
+      reference: Engram spec #3162 (Prototype Free-Text Egress as Accepted Risk); design #3163
+
+# ---------------------------------------------------------------------------
+# Pending / not yet approved
+# ---------------------------------------------------------------------------
+# The following architectural dependencies are recognized but NOT yet approved
+# for production use. They MUST NOT be used in production until an approval
+# decision exists. They are recorded here so CI can detect unapproved direct
+# imports and block them. Do not move any of these to `approved` without a new
+# SDD decision and TI-gate clearance.
+#
+# Pending governance rule: a `decision: pending` entry is evidence that the
+# dependency is recognized and under review, NOT permission to import it in
+# production code. Production imports require `decision: approved` with an
+# approver, date, and reference. A pending entry that appears as a direct
+# production import in pyproject.toml / package.json MUST fail CI.
+
+pending:
+  - name: azure-identity
+    scope: backend
+    purpose: Managed Identity and Entra token acquisition for the corporate MVP.
+    owning_feature: governance
+    license: MIT
+    risk:
+      level: medium
+      reason: Corporate-only; blocked until TI gates (tenant, region, endpoint) are met.
+    approval:
+      decision: pending
+      approver: TBD
+      date: TBD
+      reference: Blocked by TI gates; see docs/architecture/platform-architecture.md
+
+# Azure AI Search (azure-search-documents) was previously listed as a pending
+# retrieval backend. It is removed from this record because the roadmap defines
+# the canonical search path (PostgreSQL pgvector similarity, MVP adds
+# PostgreSQL FTS + RRF, reranking only if evaluation proves value). Azure AI
+# Search is not an approved dependency and is not reintroduced here. A new
+# SDD change would be required before any external search service dependency
+# is recorded; see RAG_ROADMAP.md and AGENTS.md.
+
+# ---------------------------------------------------------------------------
+# Excluded dependencies (do not add)
+# ---------------------------------------------------------------------------
+# These are listed so contributors can confirm at a glance that they are
+# intentionally excluded. Any direct production import of one of these is a
+# defect and fails review.
+
+excluded:
+  - langchain
+  - llamaindex
+  - redis
+  - kubernetes
+  - any streaming-only server framework
+  - any visual-interpretation / image-understanding library used as evidence
+  - any email / notifier delivery library

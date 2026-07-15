@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+
+# Playwright CLI logs/snapshots (local review debris)
+.playwright-cli/
+
+# OpenDesign internal history/skills (generated, not source)
+.file-versions/
+.od-skills/
+.atl/
+
+# CodeGraph local index (tool-owned .gitignore inside preserves itself)
+.codegraph/
