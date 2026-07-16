@@ -4,7 +4,7 @@
 
 ### Requirement: Locked Python Development Environment
 
-`pyproject.toml` MUST require `>=3.12,<3.13`, have empty dependencies, and use a locked `dev` extra; `.python-version` MUST pin `3.12`. Before frozen sync or any quality gate, local `make ci` MUST accept only `uv --version` output exactly equal to `uv 0.11.29`; it MUST then use frozen sync and `uv run --frozen`. On a local version mismatch, it MUST exit non-zero without running a gate and print exactly this two-line template, replacing `<actual>` with the captured version output (or `unavailable`):
+`pyproject.toml` MUST require `>=3.12,<3.13`, have empty dependencies, and use a locked `dev` extra; `.python-version` MUST pin `3.12`. Before frozen sync or any quality gate, local `make ci` MUST execute `uv self version --short` and accept only its complete output exactly equal to `0.11.29`; it MUST then use frozen sync and `uv run --frozen`. `uv -V` and `uv --version` MUST NOT validate the executable because this binary includes build metadata in both; `uv version --short` MUST NOT validate it because it reports the project-package version. On a local version mismatch, it MUST exit non-zero without running a gate and print exactly this two-line template, replacing `<actual>` with the captured output (or `unavailable`):
 
 ```text
 ERROR: uv version mismatch; expected 0.11.29, found <actual>.
@@ -18,16 +18,23 @@ Remediation: install uv 0.11.29 and rerun make ci.
 - THEN tools use uv-managed environment
 - AND stale/incompatible locks exit non-zero
 
-#### Scenario: Local uv version mismatch fails before the gate
+#### Scenario: Exact executable version succeeds
 
-- GIVEN local `uv --version` returns a value other than `uv 0.11.29`
+- GIVEN `uv self version --short` produces exactly `0.11.29`
+- WHEN `make ci` runs
+- THEN the executable-version gate succeeds
+- AND frozen sync is eligible to run
+
+#### Scenario: Invalid executable-version output fails before the gate
+
+- GIVEN `uv self version --short` is mismatched, suffixed, multiline, malformed, unavailable, or errors
 - WHEN `make ci` runs
 - THEN it emits the prescribed mismatch template with the captured value
 - AND it exits non-zero before frozen sync or any quality stage
 
 ### Requirement: Deterministic CI Runner Bootstrap
 
-After checkout, use `astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2` with `version: "0.11.29"`, then assert `uv --version` is exactly `uv 0.11.29` before `make ci`. GitHub Actions and local `make ci` MUST enforce the same version equality; the workflow assertion is a prerequisite and `make ci` repeats the local gate. Apply MUST re-verify the SHA or block.
+After checkout, use `astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2` with `version: "0.11.29"`, then assert `uv self version --short` is exactly `0.11.29` before `make ci`. GitHub Actions and local `make ci` MUST enforce the same executable-version equality; the workflow assertion is a prerequisite and `make ci` repeats the local gate. Apply MUST re-verify the SHA or block.
 
 #### Scenario: Clean runner has the selected uv
 
