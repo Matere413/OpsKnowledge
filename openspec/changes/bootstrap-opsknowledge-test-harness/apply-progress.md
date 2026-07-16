@@ -1,7 +1,7 @@
 # Apply Progress: bootstrap-opsknowledge-test-harness
 
 **Mode**: Standard (Strict TDD disabled — no runner exists; this change establishes it)
-**Delivery**: chained PRs, feature-branch-chain, PR1 slice (packaging surface only)
+**Delivery**: chained PRs, feature-branch-chain; PR2 is split into PR2A (Make/version/order) and PR2B (scanner). No monolithic PR2 exception and no `ci-available` contract.
 
 ## Size Exceptions (approved)
 
@@ -9,7 +9,7 @@
 The tracker PR is documentation-only (SDD planning artifacts + apply-progress) with **850 insertions across 7 files** (`git diff --shortstat master...chore/bootstrap-test-harness-tracker`). The user approved a `size:exception` for the tracker PR; it remains draft/no-merge until all child PRs (PR1–PR4) are reviewed and integrated.
 
 ### PR1 exception
-The user approved a `size:exception` for PR1 because 517 of its 575 changed lines are the generated, indivisible `uv.lock` lockfile. The manifest (`pyproject.toml`, `.python-version`, `.gitignore`) and the generated lockfile are one atomic reproducible unit: the lockfile is the resolution output of the manifest under the pinned `uv 0.11.29`, cannot be split from it, and must be reviewed together to verify reproducibility. The reviewer-facing authored diff is ~58 lines; the 517-line `uv.lock` is machine-generated resolution evidence, not hand-written review burden. PR2–PR4 retain focused chained boundaries with no exception.
+The user approved a `size:exception` for PR1 because 517 of its 575 changed lines are the generated, indivisible `uv.lock` lockfile. The manifest (`pyproject.toml`, `.python-version`, `.gitignore`) and the generated lockfile are one atomic reproducible unit. PR2A, PR2B, PR3, and PR4 retain focused chained boundaries with no exception.
 
 ## Cumulative Task State
 
@@ -21,9 +21,20 @@ The user approved a `size:exception` for PR1 because 517 of its 575 changed line
 - [x] 1.4 Add inline `[tool.pyright]`, `[tool.ruff]`, `[tool.pytest.ini_options]`, `[tool.coverage.run]` blocks in `pyproject.toml`. — Done.
 - [x] 1.5 Generate `uv.lock` via `uv lock`; commit it; re-running on a clean clone MUST produce an identical file. — Done (41 packages; clean-clone proven from committed branch).
 - [x] 1.6 Extend `.gitignore` with `.venv/`, `__pycache__/`, `.pytest_cache/`, `.ruff_cache/`, `.pyright_cache/`, `.uv-cache/`, `*.egg-info/`, `dist/`, `build/`, `htmlcov/`, `.coverage`. — Done.
-- [x] 1.7 Stop and report if local `uv --version` ≠ `uv 0.11.29`; do not substitute a different version. — Done.
+- [x] 1.7 Stop and report if local `uv self version --short` ≠ `0.11.29`; do not substitute a different version. — Done.
 
-### Phases 2–5 — not started (out of PR1 scope / depend on PR1)
+### Phase 2A: COMPLETE (implemented, not committed)
+- [x] `Makefile` gates on complete `uv self version --short == "0.11.29"`, then provides sync/Ruff/Pyright/Pytest order and `ci-pr2a` verification.
+- [x] Recipe tests prove exact success and reject mismatched, suffixed, multiline, malformed, unavailable, and command-error `uv self version --short` output before later invocation.
+- [x] `make ci` fails closed at the PR2B scanner boundary; PR2A contains no scanner, audit, license, or dependency-boundary implementation.
+
+### Phase 2B: NOT STARTED
+- [ ] Implement scanner and its architecture tests; then make `ci` fail closed at the PR3 audit boundary.
+
+### Phase 3: NOT STARTED
+- [ ] Complete dependency boundary, audit, license, and fail-fast work; final `make ci` exits zero.
+
+### Phases 4–5: NOT STARTED
 
 ## Git Topology (feature-branch-chain)
 
@@ -35,7 +46,7 @@ master (03a67fb)
        └─ build/bootstrap-test-harness-pr1-packaging   [PR1 PR targets tracker; size:exception]
 ```
 
-Targeting chain (feature-branch-chain): tracker draft/no-merge targets `master`; PR1 targets tracker; PR2 targets PR1 branch; PR3 targets PR2; PR4 targets PR3. PRs follow intentional sequential file ownership — PR2 creates `Makefile`, PR3 extends it (boundary/audit/license stages), so PR3's incremental diff against PR2 remains focused. Size exceptions scoped only to tracker docs and PR1 generated lockfile; PR2–PR4 have no exception.
+Targeting chain (feature-branch-chain): tracker draft/no-merge targets `master`; PR1 targets tracker; PR2A targets PR1; PR2B targets PR2A; PR3 targets PR2B; PR4 targets PR3. Size exceptions are scoped only to tracker docs and the PR1 generated lockfile; PR2A–PR4 have none.
 
 ### Immutable baseline SHAs
 | SHA | Role |
@@ -62,7 +73,7 @@ PR1's SHA is intentionally not recorded here — it is set by the final rebase o
 
 ## Verification (PR1, from final committed state)
 
-- `uv --version` → `uv 0.11.29 (901092ee1 2026-07-15 aarch64-apple-darwin)` ✅
+- `uv self version --short` → `0.11.29` ✅ (`uv -V` and `uv --version` include build metadata; `uv version --short` reports the project package version and none is the gate command.)
 - `uv lock --check` → exit 0 ✅
 - `uv sync --frozen --extra dev` → exit 0 (39 packages) ✅
 - Dev tools run from frozen env: `ruff 0.15.21`, `pyright 1.1.411`, `pytest 9.1.1` ✅
@@ -113,5 +124,6 @@ The tracker and PR1 branches went through multiple local rebases during topology
 ## Resume / Next Steps
 - PR1 implementation complete, verified, committed on `build/bootstrap-test-harness-pr1-packaging`.
 - PUBLICATION still blocked: needs remote labels, approved issue, and `origin` remote.
-- Next implementation: PR2 (Phase 2, tasks 2.1–2.8) on a child branch off the PR1 tip.
+- PR2A is implemented locally on `build/bootstrap-test-harness-pr2a-make-gate`; do not commit, push, or change topology in this documentation update.
+- Next implementation after PR2A publication: PR2B scanner; then PR3 completes audit/license and the final successful `make ci`.
 - Tracker `chore/bootstrap-test-harness-tracker` (draft/no-merge) merges to `master` only after all child PRs integrate.
