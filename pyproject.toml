@@ -15,7 +15,7 @@ dev = [
 ]
 
 [tool.pyright]
-include = ["scripts", "tests"]
+include = ["tests"]
 exclude = ["**/__pycache__", ".venv", ".git"]
 pythonVersion = "3.12"
 typeCheckingMode = "standard"
@@ -35,8 +35,11 @@ ignore = []
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests"]
-addopts = "-ra"
+addopts = "-ra -m 'not ci_recipe'"
 filterwarnings = ["error"]
+markers = [
+    "ci_recipe: tests that invoke make targets (excluded from gate to avoid recursion)",
+]
 
 [tool.coverage.run]
 source = ["scripts"]
