@@ -3,7 +3,7 @@
 Controlled fake executables + invocation-log prove: exact success log;
 trailing token; ``(build)`` suffix; multiline; mismatch; unavailable;
 same-named ``ci-pr2a`` file still runs; exact prefix log on failure; ci
-keeps PR2A independent while ci reaches the PR3 audit boundary.
+keeps PR2A independent while ci completes the PR3 quality stages.
 """
 
 from __future__ import annotations
@@ -31,6 +31,10 @@ S_RUFF_FORMAT_OK = "=== ruff format OK ==="
 S_PYRIGHT_OK = "=== pyright OK ==="
 S_PYTEST_OK = "=== pytest OK ==="
 S_FOCUSED_OK = "=== focused-test guard OK ==="
+S_BOUNDARIES_OK = "=== dependency boundaries OK ==="
+S_AUDIT_OK = "=== vulnerability audit OK ==="
+S_LICENSES_OK = "=== license inventory OK ==="
+S_CI_DONE = "=== make ci complete ==="
 S_CI_PR2A_DONE = "=== ci-pr2a complete"
 PR2A_SUCCESS_STAGES = [
     S_UV_OK,
@@ -41,7 +45,7 @@ PR2A_SUCCESS_STAGES = [
     S_PYTEST_OK,
     S_CI_PR2A_DONE,
 ]
-FAKE_TOOL_NAMES = ("ruff", "pyright", "pytest")
+FAKE_TOOL_NAMES = ("ruff", "pyright", "pytest", "python", "pip-audit", "pip-licenses")
 
 # Exact fake invocation log on a full PR2A success run (single source of truth).
 # Trailing spaces from empty $* are significant.
@@ -97,10 +101,16 @@ def _fake_uv_raw(d: Path, version_body: str) -> Path:
     return _write_fake(d, "uv", body)
 
 
-def _fake_tool(d: Path, name: str, *, fail: bool = False) -> Path:
+def _fake_tool(d: Path, name: str, *, fail: bool = False, fail_argument: str | None = None) -> Path:
     log_line = f'echo "{name} $*" >> "$LOG"'
     body = f'#!/bin/sh\nLOG="$(dirname "$0")/../invocations.log"\n{log_line}\n'
-    body += f'echo "{name}: simulated failure" >&2\nexit 1\n' if fail else "exit 0\n"
+    if fail_argument:
+        body += (
+            f'[ "$1" = "{fail_argument}" ] && '
+            f'echo "{name}: simulated failure" >&2 && exit 1\nexit 0\n'
+        )
+    else:
+        body += f'echo "{name}: simulated failure" >&2\nexit 1\n' if fail else "exit 0\n"
     return _write_fake(d, name, body)
 
 
@@ -142,7 +152,11 @@ def _run_with_fakes(
     else:
         _fake_uv(bin_dir, EXPECTED_UV_VERSION)
     for name in FAKE_TOOL_NAMES:
-        _fake_tool(bin_dir, name, fail=name in failing_tools)
+        fail_argument = {
+            "dependency-boundary": "scripts/ci/check_dependency_boundaries.py",
+            "audit": "scripts/ci/run_vulnerability_audit.py",
+        }.get(next((stage for stage in failing_tools if name == "python"), ""))
+        _fake_tool(bin_dir, name, fail=name in failing_tools, fail_argument=fail_argument)
     env = {"UV": str(bin_dir / "uv"), "PATH": f"{bin_dir}:{os.environ.get('PATH', '')}"}
     return _run_make(target, env=env, timeout=timeout), log
 
@@ -298,17 +312,40 @@ def test_failure_exact_prefix_log(
     )
 
 
-def test_ci_reaches_pr3_audit_boundary(tmp_path: Path) -> None:
+def test_ci_completes_pr3_stages(tmp_path: Path) -> None:
     ci_result, ci_log = _run_with_fakes("ci", tmp_path)
-    assert ci_result.returncode != 0, (
-        f"make ci should fail closed at the PR3 audit boundary\nstdout: {ci_result.stdout}"
-    )
+    assert ci_result.returncode == 0, f"make ci failed\nstdout: {ci_result.stdout}"
     assert S_PYTEST_OK in ci_result.stdout
     assert _invocations(ci_log) == [
         *EXPECTED_PR2A_LOG[:2],
         "uv run --frozen python scripts/ci/check_focused_tests.py .",
+        "python scripts/ci/check_focused_tests.py .",
         *EXPECTED_PR2A_LOG[2:],
+        "uv run --frozen python scripts/ci/check_dependency_boundaries.py .",
+        "python scripts/ci/check_dependency_boundaries.py .",
+        "uv run --frozen python scripts/ci/run_vulnerability_audit.py",
+        "python scripts/ci/run_vulnerability_audit.py",
+        "uv run --frozen pip-licenses --from=expression --format=json",
+        "pip-licenses --from=expression --format=json",
     ]
     assert S_FOCUSED_OK in ci_result.stdout
-    assert "audit is not yet implemented until PR3" in (ci_result.stdout + ci_result.stderr)
-    assert "=== make ci complete ===" not in ci_result.stdout
+    assert all(
+        stage in ci_result.stdout
+        for stage in [S_BOUNDARIES_OK, S_AUDIT_OK, S_LICENSES_OK, S_CI_DONE]
+    )
+
+
+@pytest.mark.parametrize(
+    ("failure", "blocked"),
+    [
+        ("dependency-boundary", [S_BOUNDARIES_OK, S_AUDIT_OK, S_LICENSES_OK, S_CI_DONE]),
+        ("audit", [S_AUDIT_OK, S_LICENSES_OK, S_CI_DONE]),
+        ("pip-licenses", [S_LICENSES_OK, S_CI_DONE]),
+    ],
+)
+def test_pr3_stage_failure_stops_later_stages(
+    tmp_path: Path, failure: str, blocked: list[str]
+) -> None:
+    result, _log = _run_with_fakes("ci", tmp_path, failing_tools=(failure,))
+    assert result.returncode != 0
+    assert all(sentinel not in result.stdout for sentinel in blocked)

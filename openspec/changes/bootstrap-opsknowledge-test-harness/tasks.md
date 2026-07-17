@@ -1,41 +1,51 @@
 # Tasks: Bootstrap OpsKnowledge Test Harness
 
 ## Review Workload Forecast
-Engram #3588 grants a size exception only to PR2B; PR2A, PR3, and PR4 have no size exception. Planning remains separate. Report staged, full-worktree, implementation/test, planning, and combined totals independently against `f505c81`.
 
-Final staged/full snapshot against `f505c81`: +1,182/-500 = 1,682 changed lines. Implementation/test: +835/-26 = 861; planning/config: +347/-474 = 821. The staged index and worktree are identical; the prior staged/unstaged overlay discrepancy is resolved.
+| Field | Value |
+|---|---|
+| Estimated PR3 changed lines | 350–650 |
+| 800-line budget risk | Medium |
+| Chained PRs recommended | Yes — existing feature-branch-chain |
+| Suggested split | PR3 audit/boundary/fail-fast → PR4 Actions adapter |
+| Delivery strategy | ask-always |
+| Chain strategy | feature-branch-chain |
 
-Decision needed before apply: No
+Decision needed before apply: No — resolved by Engram #3658 for PR3 only.
 Chained PRs recommended: Yes
 Chain strategy: feature-branch-chain
-400-line budget risk: High
+400-line budget risk: Medium
+
+PR3 has a maintainer-approved `size:exception` (Engram #3658) for this slice only. The session review budget remains 800 changed lines. PR4 has no exception and remains out of scope.
 
 ### Suggested Work Units
-| Unit | Goal | PR | Boundary |
+
+| Unit | Goal | Likely PR | Boundary |
 |---|---|---|---|
-| 1 | Ordered whitelist replacement | PR2B | Child of PR2A `f505c81`; #3588 only |
-| 2 | Bounded scanner and suite | PR2B | Same child; PR2B-only exception |
-| 3 | Boundaries, audit, license, fail-fast | PR3 | Child of PR2B; no exception |
-| 4 | Thin Actions adapter | PR4 | Child of PR3; no exception |
+| 1 | Complete audit, dependency-boundary, license, and fail-fast stages | PR3 | Base = PR2B branch; #3658 exception only |
+| 2 | Add least-privilege GitHub Actions adapter and static checks | PR4 | Base = PR3 branch; no exception |
 
-## Phase 1: Preserve and Migrate Before Scanning
-- [x] 1.1 Preserve revised exploration, proposal, spec, design, tasks, and superseded audit history; mark the detector implementation/suite superseded and keep migration history intact.
-- [x] 1.2 Before any root scan, replace `tests/architecture/test_focused_test_scanner.py` wholesale with the whitelist-derived suite; do not use the old detector suite as acceptance input.
-- [x] 1.3 In `tests/ci/test_local_uv_version.py`, replace the three parametrize lambdas with named module-level helpers and the three `_FAILURE_PREFIXES[...]` decorator subscripts with named constants/direct references.
+## Phase 1: Completed Foundation and PR2 Slices
 
-## Phase 2: Finite Global Whitelist Scanner
-- [x] 2.1 Replace `scripts/ci/check_focused_tests.py` wholesale: remove `_bound_names`, resolver/value flow, and detector logic; implement global structural whitelist/default deny with exact handled-root ownership and no semantic resolution.
-- [x] 2.2 Enforce only unaliased `import pytest`, session `pytest.fixture`, direct `pytest.mark.parametrize`, direct `pytestmark` ci-recipe value/singleton tuple, and direct `pytest.MonkeyPatch` annotation; reject other pytest/unittest APIs and aliases.
-- [x] 2.3 Implement ownership for direct `__import__`, `importlib.import_module`, and `importlib.__import__` calls targeting literal `pytest`/`unittest`; emit `unsupported-dynamic-import`, handle descendants once, and leave ordinary strings/unrelated targets unflagged.
-- [x] 2.4 Implement direct `parametrize` grammar, including literal containers and any direct `Name` in value/`ids` positions without lookup; reject lambda, call, f-string, comprehension, conditional, attribute/subscript, starred, wrapper, and unknown expressions.
-- [x] 2.5 Implement incremental bounded `scandir`: count entries before metadata, keep root uncounted, allow 100,000 and reject 100,001 before classification, classify fixed exclusions, never enumerate/read excluded subtrees, and preserve unknown paths.
-- [x] 2.6 Preserve lexical ordering, 10,000-file, 1 MiB/file, 64 MiB total-byte limits/order, symlink/enumeration/stat/read/decode/parse closure, safe paths, stable reason/remediation mapping, deduplication, and scanner-before-Pytest Makefile ordering.
+- [x] 1.1 Preserve proposal/spec/design history and PR1/PR2A/PR2B delivery evidence; keep Strict TDD disabled.
+- [x] 1.2 Complete PR1 packaging and locked `uv` environment (`.python-version`, `pyproject.toml`, `uv.lock`, `.gitignore`).
+- [x] 1.3 Complete PR2A `Makefile` version gate, frozen sync, ordered Ruff/Pyright/Pytest stages, and recipe tests.
+- [x] 1.4 Complete PR2B whitelist scanner, migration, equivalence-class tests, bounded traversal tests, and PR2B verification/review evidence.
 
-## Phase 3: Contract Acceptance and Accounting
-- [x] 3.1 Add equivalence-class tests for whitelist allowances/rejections, dynamic-import ownership, handled descendants, default-deny APIs, false-positive strings/production calls, and stable diagnostics.
-- [x] 3.2 Add total-entry, excluded-entry, incremental enumeration, all file/byte boundary, error, symlink, ordering, and collection-independence tests; prove the complete included tree passes after migrations.
-- [x] 3.3 Verify clean pass, PR3-boundary failure, full verification, staged/full three-way accounting, implementation/test versus planning totals, and rollback/fix-forward evidence for `f505c81`.
+## Phase 2: PR3 Core Implementation (Complete)
 
-## Phase 4: Apply Cleanup and Fresh Review
-- [x] 4.1 Clean stale current detector/resolver completion claims from `apply-progress.md` while preserving truthful completed history and superseded audit evidence.
-- [x] 4.2 Stage proposal/spec/design/tasks consistently, then complete independent fresh 4R review without widening PR2B or adding PR3/PR4 exceptions.
+- [x] 2.1 Create `scripts/ci/check_dependency_boundaries.py` with the reviewed distribution map, production-manifest/governance reconciliation, and explicit non-importable exclusions; fail on map gaps.
+- [x] 2.2 Scan first-party imports and literal dynamic imports, resolve approved aliases, and emit safe `path:line:canonical-distribution` findings without changing governance.
+- [x] 2.3 Create `scripts/ci/run_vulnerability_audit.py` with one bounded `pip-audit` call, stable success/finding/unavailable/tool-failure classifications, and unchanged-rerun recovery only.
+- [x] 2.4 Extend `Makefile` after Pytest with dependency-boundary, audit, and `license-inventory` stages; preserve output and stop on first failure.
+
+## Phase 3: PR3 Verification (Complete)
+
+- [x] 3.1 Add `tests/architecture/test_dependency_boundaries.py` for direct, chained aliases, dynamic, excluded, invalid-root, symlink, map, and governance cases, including empty/whitespace risk-level rejection.
+- [x] 3.2 Add `tests/unit/test_audit_wrapper.py` for all classifications, argv-safe configured-UV execution, output/exit propagation, and recovery rerun.
+- [x] 3.3 Extend `tests/ci/test_local_uv_version.py` with PR3-stage fail-fast sentinels; verify final `make ci` exits zero.
+
+## Phase 4: PR4 Workflow Adapter (Pending)
+
+- [ ] 4.1 Create `.github/workflows/ci.yml` with pinned `astral-sh/setup-uv` SHA, read-only permissions, credential-free checkout, exact `uv self version --short`, and one `make ci` step.
+- [ ] 4.2 Add static workflow tests under `tests/architecture/` and re-fetch/re-verify the setup-uv SHA at apply time; record evidence in the final verification report.
