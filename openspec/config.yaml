@@ -4,13 +4,13 @@ context: |
   Product: OpsKnowledge, a bilingual technical knowledge platform over approved, versioned runbooks, ADRs, and operational policies.
   Architecture: feature-organized modular monolith with hexagonal boundaries; one process and PostgreSQL own durable state.
   Planned stack: FastAPI, React/Vite, PostgreSQL/pgvector, SQLAlchemy 2, Alembic, Psycopg 3, Docling, and a replaceable generation/embedding provider.
-  Current state: documentation baseline only; no runtime source, manifests, lockfiles, test runner, Makefile, or CI pipeline.
+  Current state: Python 3.12 test-harness bootstrap is active; pytest, Ruff, Pyright, uv lockfile, Makefile CI stages, and focused-test guard exist; application runtime is not yet present.
   Authority order: AGENTS.md, RAG_ROADMAP.md, docs/architecture/platform-architecture.md, then SDD artifacts.
   Safety: grounded citations, language-isolated retrieval, abstention, no visual evidence interpretation, and no partial active index.
 
 artifact_store:
   mode: hybrid
-  engram_project: rag
+  engram_project: opsknowledge
 
 workflow:
   execution_mode: interactive
@@ -20,15 +20,15 @@ workflow:
 strict_tdd: false
 
 testing:
-  detected: 2026-07-15
+  detected: 2026-07-16
   strict_tdd: false
-  rationale: No runtime stack or test runner exists; the first implementation change must establish the harness and then re-evaluate Strict TDD.
+  rationale: Explicit existing configuration keeps Strict TDD disabled while the bootstrap change establishes the test harness; re-evaluate before application-runtime implementation.
   test_runner:
-    available: false
-    command: ""
-    framework: ""
+    available: true
+    command: "uv run --frozen pytest"
+    framework: pytest 9.1.1
   layers:
-    unit: false
+    unit: true
     integration: false
     e2e: false
   coverage:
@@ -36,14 +36,14 @@ testing:
     command: ""
   quality:
     linter:
-      available: false
-      command: ""
+      available: true
+      command: "uv run --frozen ruff check ."
     type_checker:
-      available: false
-      command: ""
+      available: true
+      command: "uv run --frozen pyright"
     formatter:
-      available: false
-      command: ""
+      available: true
+      command: "uv run --frozen ruff format --check ."
 
 rules:
   proposal:
@@ -63,9 +63,9 @@ rules:
       - Follow the documented architecture and dependency governance process.
       - Do not introduce excluded dependencies or TI-gated corporate integrations without a new approved SDD change.
     tdd: false
-    test_command: ""
+    test_command: "uv run --frozen pytest"
   verify:
-    test_command: ""
+    test_command: "uv run --frozen pytest"
     build_command: ""
     coverage_threshold: 0
   archive:

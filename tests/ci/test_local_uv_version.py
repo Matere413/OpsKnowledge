@@ -3,7 +3,7 @@
 Controlled fake executables + invocation-log prove: exact success log;
 trailing token; ``(build)`` suffix; multiline; mismatch; unavailable;
 same-named ``ci-pr2a`` file still runs; exact prefix log on failure; ci
-reuses ci-pr2a with no recipe drift.
+keeps PR2A independent while ci reaches the PR3 audit boundary.
 """
 
 from __future__ import annotations
@@ -19,8 +19,6 @@ import pytest
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-pytestmark = pytest.mark.ci_recipe
-
 EXPECTED_UV_VERSION = "0.11.29"
 MISMATCH_LINE1 = "ERROR: uv version mismatch; expected 0.11.29, found {actual}."
 MISMATCH_LINE2 = "Remediation: install uv 0.11.29 and rerun make ci."
@@ -32,6 +30,7 @@ S_RUFF_CHECK_OK = "=== ruff check OK ==="
 S_RUFF_FORMAT_OK = "=== ruff format OK ==="
 S_PYRIGHT_OK = "=== pyright OK ==="
 S_PYTEST_OK = "=== pytest OK ==="
+S_FOCUSED_OK = "=== focused-test guard OK ==="
 S_CI_PR2A_DONE = "=== ci-pr2a complete"
 PR2A_SUCCESS_STAGES = [
     S_UV_OK,
@@ -161,12 +160,24 @@ def _check_uv(maker: _Maker, tmp_path: Path) -> subprocess.CompletedProcess[str]
     return _run_make("check-uv-version", env={"UV": str(bin_dir / "uv")})
 
 
+def _fake_trailing_version(bin_dir: Path) -> None:
+    _fake_uv(bin_dir, "0.11.29 extra")
+
+
+def _fake_build_version(bin_dir: Path) -> None:
+    _fake_uv(bin_dir, "0.11.29 (build)")
+
+
+def _fake_mismatched_version(bin_dir: Path) -> None:
+    _fake_uv(bin_dir, "0.11.30")
+
+
 @pytest.mark.parametrize(
     ("actual", "maker"),
     [
-        ("0.11.29 extra", lambda d: _fake_uv(d, "0.11.29 extra")),
-        ("0.11.29 (build)", lambda d: _fake_uv(d, "0.11.29 (build)")),
-        ("0.11.30", lambda d: _fake_uv(d, "0.11.30")),
+        ("0.11.29 extra", _fake_trailing_version),
+        ("0.11.29 (build)", _fake_build_version),
+        ("0.11.30", _fake_mismatched_version),
     ],
     ids=["trailing-token", "build-suffix", "mismatch"],
 )
@@ -259,14 +270,17 @@ _FAILURE_PREFIXES = {
     "pyright": EXPECTED_PR2A_LOG[:8],
     "pytest": EXPECTED_PR2A_LOG[:10],
 }
+RUFF_FAILURE_PREFIX = _FAILURE_PREFIXES["ruff"]
+PYRIGHT_FAILURE_PREFIX = _FAILURE_PREFIXES["pyright"]
+PYTEST_FAILURE_PREFIX = _FAILURE_PREFIXES["pytest"]
 
 
 @pytest.mark.parametrize(
     ("failing_tool", "expected_prefix"),
     [
-        ("ruff", _FAILURE_PREFIXES["ruff"]),
-        ("pyright", _FAILURE_PREFIXES["pyright"]),
-        ("pytest", _FAILURE_PREFIXES["pytest"]),
+        ("ruff", RUFF_FAILURE_PREFIX),
+        ("pyright", PYRIGHT_FAILURE_PREFIX),
+        ("pytest", PYTEST_FAILURE_PREFIX),
     ],
     ids=["ruff", "pyright", "pytest"],
 )
@@ -284,17 +298,17 @@ def test_failure_exact_prefix_log(
     )
 
 
-def test_ci_reuses_ci_pr2a_then_fails_at_pr2b(tmp_path: Path) -> None:
+def test_ci_reaches_pr3_audit_boundary(tmp_path: Path) -> None:
     ci_result, ci_log = _run_with_fakes("ci", tmp_path)
     assert ci_result.returncode != 0, (
-        f"make ci should fail closed at focused-tests\nstdout: {ci_result.stdout}"
+        f"make ci should fail closed at the PR3 audit boundary\nstdout: {ci_result.stdout}"
     )
-    assert S_CI_PR2A_DONE in ci_result.stdout, (
-        f"ci did not reuse ci-pr2a (no completion sentinel)\nstdout: {ci_result.stdout}"
-    )
-    assert _invocations(ci_log) == EXPECTED_PR2A_LOG, (
-        f"ci invocation log differs from ci-pr2a:\nexpected: {EXPECTED_PR2A_LOG}\n"
-        f"got: {_invocations(ci_log)}"
-    )
-    assert "not yet implemented" in (ci_result.stdout + ci_result.stderr)
+    assert S_PYTEST_OK in ci_result.stdout
+    assert _invocations(ci_log) == [
+        *EXPECTED_PR2A_LOG[:2],
+        "uv run --frozen python scripts/ci/check_focused_tests.py .",
+        *EXPECTED_PR2A_LOG[2:],
+    ]
+    assert S_FOCUSED_OK in ci_result.stdout
+    assert "audit is not yet implemented until PR3" in (ci_result.stdout + ci_result.stderr)
     assert "=== make ci complete ===" not in ci_result.stdout

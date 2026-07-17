@@ -1,7 +1,15 @@
 # Apply Progress: bootstrap-opsknowledge-test-harness
 
-**Mode**: Standard (Strict TDD disabled — no runner exists; this change establishes it)
-**Delivery**: chained PRs, feature-branch-chain; PR2 is split into PR2A (Make/version/order) and PR2B (scanner). No monolithic PR2 exception and no `ci-available` contract.
+**Mode**: Standard (Strict TDD disabled)
+**Delivery**: feature-branch-chain; current slice is PR2B, child of `f505c81`; Engram #3588 grants a PR2B-only size exception. PR3/PR4 retain no exception.
+
+## Current PR2B Rebuild Status
+
+- Completed regenerated tasks: 1.1–1.3, 2.1–2.6, 3.1–3.3, and 4.1–4.2. The scanner has no alias/value resolver, uses finite AST-shape checks, and runs before Pytest.
+- Independent final 4R review completed after remediating confirmed security, reliability, readability, and resilience findings. Focused reliability revalidation returned `No findings.`; focused documentary readability returned `No findings. Merge verdict: APPROVE`.
+- Historical PR2B completion claims below are **superseded audit evidence**, not current conformance evidence. The previous resolver/detector record is retained only to document its rejection.
+- **Accounting rule (Engram #3588):** PR2B's prior 800-line implementation/test cap is replaced by a PR2B-only size exception. Planning remains separately reported; PR3/PR4 retain no exception.
+- The corrected scanner is rebuilt from `f505c81` without semantic alias/value resolution. Accounting and rollback/fix-forward evidence appear below; no unrelated scope is authorized.
 
 ## Size Exceptions (approved)
 
@@ -9,7 +17,7 @@
 The tracker PR is documentation-only (SDD planning artifacts + apply-progress) with **850 insertions across 7 files** (`git diff --shortstat master...chore/bootstrap-test-harness-tracker`). The user approved a `size:exception` for the tracker PR; it remains draft/no-merge until all child PRs (PR1–PR4) are reviewed and integrated.
 
 ### PR1 exception
-The user approved a `size:exception` for PR1 because 517 of its 575 changed lines are the generated, indivisible `uv.lock` lockfile. The manifest (`pyproject.toml`, `.python-version`, `.gitignore`) and the generated lockfile are one atomic reproducible unit. PR2A, PR2B, PR3, and PR4 retain focused chained boundaries with no exception.
+The user approved a `size:exception` for PR1 because 517 of its 575 changed lines are the generated, indivisible `uv.lock` lockfile. The manifest (`pyproject.toml`, `.python-version`, `.gitignore`) and the generated lockfile are one atomic reproducible unit. PR2A, PR3, and PR4 retain focused chained boundaries with no exception; PR2B has the separate #3588 exception.
 
 ## Cumulative Task State
 
@@ -28,8 +36,9 @@ The user approved a `size:exception` for PR1 because 517 of its 575 changed line
 - [x] Recipe tests prove exact success and reject mismatched, suffixed, multiline, malformed, unavailable, and command-error `uv self version --short` output before later invocation.
 - [x] `make ci` fails closed at the PR2B scanner boundary; PR2A contains no scanner, audit, license, or dependency-boundary implementation.
 
-### Phase 2B: NOT STARTED
-- [ ] Implement scanner and its architecture tests; then make `ci` fail closed at the PR3 audit boundary.
+### Historical superseded PR2B implementation (audit evidence only)
+- [x] The previous staged scanner claimed resolver-based alias handling, dynamic `getattr`, recursive containers, generic focus checks, and TOCTOU protection. Those claims are superseded by the pure finite-syntax design and MUST NOT be read as current behavior. The retained entry records the rejected implementation history only.
+- [x] **Superseded audit history:** Engram #3488 formerly limited PR2B to 800 lines. Engram #3588 replaces that cap with the current PR2B-only size exception; PR3 and PR4 retain no exceptions.
 
 ### Phase 3: NOT STARTED
 - [ ] Complete dependency boundary, audit, license, and fail-fast work; final `make ci` exits zero.
@@ -46,7 +55,7 @@ master (03a67fb)
        └─ build/bootstrap-test-harness-pr1-packaging   [PR1 PR targets tracker; size:exception]
 ```
 
-Targeting chain (feature-branch-chain): tracker draft/no-merge targets `master`; PR1 targets tracker; PR2A targets PR1; PR2B targets PR2A; PR3 targets PR2B; PR4 targets PR3. Size exceptions are scoped only to tracker docs and the PR1 generated lockfile; PR2A–PR4 have none.
+Targeting chain (feature-branch-chain): tracker draft/no-merge targets `master`; PR1 targets tracker; PR2A targets PR1; PR2B targets PR2A; PR3 targets PR2B; PR4 targets PR3. Size exceptions are scoped to tracker docs, the PR1 generated lockfile, and PR2B under Engram #3588; PR2A, PR3, and PR4 have no exception.
 
 ### Immutable baseline SHAs
 | SHA | Role |
@@ -122,8 +131,14 @@ None — implementation matches design.
 The tracker and PR1 branches went through multiple local rebases during topology remediation and governance restacking. All intermediate SHAs are unreachable from current branch tips. The final compacted history contains: master (2 commits), tracker (1 commit ahead of master), PR1 (1 commit ahead of tracker). No intermediate SHAs are presented as review commits.
 
 ## Resume / Next Steps
-- PR1 implementation complete, verified, committed on `build/bootstrap-test-harness-pr1-packaging`.
-- PUBLICATION still blocked: needs remote labels, approved issue, and `origin` remote.
-- PR2A is implemented locally on `build/bootstrap-test-harness-pr2a-make-gate`; do not commit, push, or change topology in this documentation update.
-- Next implementation after PR2A publication: PR2B scanner; then PR3 completes audit/license and the final successful `make ci`.
-- Tracker `chore/bootstrap-test-harness-tracker` (draft/no-merge) merges to `master` only after all child PRs integrate.
+- PR2B implemented locally on `build/bootstrap-test-harness-pr2b-focused-test-scanner` (child of `f505c81`); NOT committed/pushed/PR'd; independent review approved.
+- Next: proceed to SDD verification/archive handoff. PR3 is not started.
+
+## PR2B (local, uncommitted; child of `f505c81`; PR2B-only `size:exception`)
+- Exception evidence: Engram decision **#3588** replaces the prior PR2B 800-line implementation/test cap. It explicitly does **not** apply to PR3 or PR4 and authorizes no unrelated scope.
+- Ruff/format/Pyright pass ✅ | scanner suite 44 passed ✅ | Pytest 64 passed ✅, including CI-process propagation tests | `make ci-pr2a` 0 ✅ | `make ci` 2 only at `check-audit` (PR3) after focused-test guard ✅.
+- Scanner behavior is limited to pure finite syntax: direct prohibited forms, explicit alias/indirection rejection, direct runtime controls, `pytestmark` mutation categories, deterministic deduplicated diagnostics, and bounded stable-tree traversal. It makes no semantic, generic-production-focus, or TOCTOU claim.
+- **Superseded audit note:** earlier fresh-review claims are historical audit evidence only. The current final review status is the independently approved 4R cycle recorded above.
+- Final staged/full snapshot against `f505c81`: +1,182/-500 = 1,682 lines. The index and worktree match exactly; there is no remaining unstaged overlay.
+- Final full-worktree categories: implementation/test +835/-26 = 861 lines (`Makefile`, scanner, scanner tests, local-UV tests); planning/config +347/-474 = 821 lines (apply-progress, design, exploration, proposal, spec, tasks, config). PR2B has the #3588 exception; PR3/PR4 do not.
+- Rollback boundary: `f505c81` is both an ancestor and the current checked-out PR2B base. No commit exists. To discard PR2B atomically, run `git restore --source=f505c81 --staged --worktree -- Makefile scripts/ci/check_focused_tests.py tests/architecture/test_focused_test_scanner.py tests/ci/test_local_uv_version.py openspec/changes/bootstrap-opsknowledge-test-harness openspec/config.yaml`. Fix-forward retains this boundary, corrects only PR2B paths, reruns the recorded gates, and targets the immediate PR2A parent.

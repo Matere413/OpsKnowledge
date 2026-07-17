@@ -2,67 +2,73 @@
 
 ## Technical Approach
 
-Create a Python 3.12 development-only gate for `test-harness`. `uv.lock` is the resolution authority; local and remote validation share ordered `make ci`, which first requires `uv self version --short` to equal exactly `0.11.29`. GitHub Actions supplies and verifies the same deterministic prerequisite, then delegates its only project-validation command to `make ci`. No runtime, production dependency, provider, database, or web surface is created.
+Preserve PR1/PR2A's locked Python/`uv` and fail-fast `make ci`. PR2B is a bytes-and-AST-only strict structural whitelist.
 
 ## Architecture Decisions
 
 | Decision | Alternatives / trade-off | Choice and rationale |
 |---|---|---|
-| Environment binding | Frozen resolution does not pin the `uv` executable | Before every local `make ci` gate, require complete `uv self version --short` output exactly `0.11.29`; then use `uv sync --frozen --extra dev` and `uv run --frozen`. Installed-binary evidence shows both `uv -V` and `uv --version` include build metadata; `uv version --short` is project metadata. A mismatch prints the prescribed two-line remediation and stops before sync. |
-| CI bootstrap | Ambient/latest uv is nondeterministic | After existing checkout, use `astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2`, `version: "0.11.29"`, then assert the same exact `uv self version --short` output before `make ci`, which repeats the local assertion. GitHub's authoritative Astral tag resolves to this verified commit; apply re-verifies it. |
-| Focused-test guard | A Pytest check is collection-skippable | Run `uv run --frozen python scripts/ci/check_focused_tests.py` before Pytest. Its AST resolver rejects prohibited forms and aliases across `tests/**/*.py`; allowlist empty. |
-| Fail-fast proof | Manual observation is weak | `tests/ci/test_ci_fail_fast.py` copies the recipe, substitutes `UV ?= uv` sentinels, and proves every selected failure stops later stages. |
-| Audit availability | Retry/suppression weakens the gate | `scripts/ci/run_vulnerability_audit.py` invokes `uv run --frozen pip-audit --local --strict` once, forwards output, and reports `success`, `vulnerability_finding`, `vulnerability_service_unavailable`, or `vulnerability_tool_failure`. All non-successes fail; recovery is the same command after restoration. |
-| Dependency boundary | Distribution/import names diverge | `scripts/ci/check_dependency_boundaries.py` owns a reviewed normalized map: `langchain`/`langchain`, `llamaindex`/`llama_index`, `redis`/`redis`, `kubernetes`/`kubernetes`; policy-only exclusions are explicitly marked non-importable. Map omissions and unresolved excluded aliases fail visibly. |
-| License posture | An allowlist invents approval | `pip-licenses` emits inventory evidence only. |
-| Workflow security | Tags/default tokens are mutable/broad | Preserve existing `push`/`pull_request`, read-only permissions, credential-free checkout, no secrets/`pull_request_target`, and immutable version-commented action pins. |
+| Strict whitelist | Detection leaves bypass space | Only repository-evidenced direct pytest shapes pass; other executable pytest/unittest use fails. |
+| Scope | `tests/` misses source; environments scan vendor code | First-party `*.py`; only `.git/`, `.venv/`, `__pycache__/`, `.pytest_cache/`, `.ruff_cache/`, `.mypy_cache/`, `.pyright/`, `.cache/` excluded; unknown paths included. |
+| Excluded entries | Inspecting skipped content breaks the boundary | Count before `lstat`; error/symlink fails; verified exclusions are never read/enumerated. |
+| Bounded scan | Unbounded traversal risks CI exhaustion | Iterative lexical worklist; stop above 100,000 encountered entries, 10,000 Python files, 1 MiB/file, or 64 MiB total bytes. |
+| CI boundary | A guard after Pytest is bypassable | Keep PR2A stages/version gate, but compose `make ci` as sync → scanner → Ruff/Pyright → Pytest → failing PR3 audit boundary. |
 
 ## Data Flow
 
 ```text
-local make ci -> exact uv self version --short assertion -> frozen sync -> focused guard -> Ruff -> Pyright
-checkout -> setup-uv 0.11.29 -> uv self version --short assertion -> make ci
-pyproject.toml + uv.lock -> frozen sync -> focused guard -> Ruff -> Pyright
-  -> Pytest -> audit wrapper -> license inventory
+make ci → exact uv gate → frozen sync → iterative walk → entry/file/byte limits → AST classifier
+                                                                  ├─ diagnostics → non-zero
+                                                                  └─ clean → quality stages → PR3 boundary
 ```
-
-The workflow's setup/assertion are prerequisites, not project validation. `Makefile` uses one fail-fast recipe and stage labels; its first stage compares complete `uv self version --short` output literally, rejects mismatch, suffix, multiline, malformed, unavailable, and command-error output, and emits the specified two-line remediation. The AST dependency scanner first validates complete policy-map coverage, resolves direct/imported/assigned aliases and literal dynamic imports, then emits `path:line: canonical-distribution`; unresolved excluded aliases are errors.
 
 ## File Changes
 
 | File | Action | Description |
 |---|---|---|
-| `pyproject.toml`, `.python-version`, `uv.lock` | Create | Empty production set, Python 3.12, locked dev tools. |
-| `Makefile`, `scripts/ci/check_focused_tests.py`, `scripts/ci/check_dependency_boundaries.py`, `scripts/ci/run_vulnerability_audit.py` | Create | Exact local uv assertion with deterministic remediation, then ordered locked gate and fail-closed helpers. |
-| `.github/workflows/ci.yml` | Create | Existing secure adapter plus pinned uv bootstrap/assertion and `make ci`. |
-| `tests/{unit,architecture,ci}/` | Create | Guard, dependency-map, audit-wrapper, and fail-fast tests. |
-| `governance/direct-dependencies.yaml` | Validate only | Evidence remains unchanged. |
+| `scripts/ci/check_focused_tests.py` | Replace | Default-deny structural validator; discard detector/resolver. |
+| `tests/architecture/test_focused_test_scanner.py` | Replace | Wholesale equivalence-class suite; detector-era file is superseded evidence. |
+| `Makefile` | Modify | Pass worktree root and run guard before Pytest; retain PR3 stub. |
+| `openspec/changes/.../design.md` | Modify | This corrected superseding design. |
 
 ## Interfaces / Contracts
 
 ```python
-EXCLUDED_IMPORT_ROOTS: dict[str, tuple[str, ...]]
-# {"llamaindex": ("llama_index",), ...}
-
-AuditResult = Literal[
-    "success", "vulnerability_finding",
-    "vulnerability_service_unavailable", "vulnerability_tool_failure",
-]
+Diagnostic = tuple[str, int, str, str]
+# safe_relative_path, line_or_0, reason_code, remediation
 ```
 
-`make ci` accepts only complete `uv self version --short` output `0.11.29`; mismatch, suffixed, multiline, malformed, unavailable, or command-error output emits the specified two-line error with captured `<actual>` (or `unavailable`) and returns non-zero before its first gate. The guard and dependency scanner return non-zero with stable path/line evidence. The audit wrapper accepts a subprocess seam for tests, calls it once, forwards output, and returns non-zero for every non-success classification.
+The validator visits every finite executable API root globally: pytest/unittest `Import`, import `Call`, `Name`, `Attribute`, `Call`, decorator, annotation, and assignment roots. Only pytest/unittest imports are restricted: canonical `import pytest` passes; pytest `from`/star/alias/dynamic imports and every unittest import/use are `unsupported-test-api`. Owned allowed shapes are `pytest.fixture(scope="session")`, direct `pytest.mark.parametrize`, direct `pytestmark = pytest.mark.ci_recipe` or singleton tuple, and `pytest.MonkeyPatch` annotation. Other executable pytest use is unsupported.
+
+No symbol table/value flow exists. Alias/chained assignment, `getattr`, dunder, subscript, computed/wrapped receiver, and dynamic import reject structurally. Strings/docs and non-pytest `.only`/`.focus` pass. Noncanonical pytestmark assignment/mutation is `pytestmark-mutation`.
+
+`parametrize` owns its direct decorator. Position 0 is string/tuple-of-strings; values and `ids` recursively permit string/number/bool/`None` constants, list/tuple, or any direct `Name` (never resolved/executed/scope-checked). Lambda, call, f-string, comprehension, conditional, attribute, subscript, starred, wrapper, unknown, or other keyword fails once at its first invalid node: `unsupported-parametrize-argument` / “use literal containers or a direct Name”. Validated descendants are handled.
+
+Dynamic-import ownership applies to complete direct calls `__import__`, `importlib.import_module`, or `importlib.__import__` whose positional or `name=` target is exact literal `"pytest"` or `"unittest"`. Syntactic `import importlib as ...` and `from importlib import import_module` forms reject at their import root without alias/value resolution. It reports `unsupported-dynamic-import` / “remove the dynamic import or use canonical import pytest”; children are handled. Other calls and standalone strings/docs are not dynamic-import findings.
+
+Validators claim approved/rejected roots in `handled`; descendants are not reclassified. Unowned executable pytest/unittest references fail. Deduplicate `(path,line,reason,remediation)`; map `unsupported-test-api` and `pytestmark-mutation` to their direct rewrites.
+
+Root is uncounted. One global encounter counter spans the scan invocation. Incrementally consume `scandir`, count before classification, and collect only bounded entries; candidate 100001 stops before metadata. Sort each collected directory batch; process exclusions before descent/Python accounting and push children reverse-lexically. Every entry counts. In-scope Python then checks 10,000 files, 1 MiB, 64 MiB before read/parse. Limits stop; other observable errors fail closed.
+
+Paths are safely relative (else traversal error); AST lines fall back to `0`. Deduplicate all fields and sort path, line, reason, remediation. Remediation is rewrite direct, remove the construct/mutation, or propose a new SDD grammar.
 
 ## Testing Strategy
 
-| Layer | What | Approach |
+| Layer | Test | Approach |
 |---|---|---|
-| Unit | Focus aliases; map normalization/coverage | Temporary files and table-driven fixtures, including `llama_index`. |
-| Unit | Audit outcomes | Stub subprocess: success, finding, timeout, unavailable service, unexpected failure; assert classification, one call, non-zero, and success rerun. |
-| CI recipe | Local executable-version parity, ordering/bootstrap | Stub `uv self version --short` for exact success and mismatch, suffixed, multiline, malformed, unavailable, and command-error output; assert exact remediation and no later invocation on failure. Static workflow test checks setup SHA/comment, selected version, `uv self version --short` assertion-before-`make ci`, and existing security boundary. |
+| Whitelist | Each allowed import/decorator/annotation/pytestmark shape | New equivalence-class suite uses only literals/direct Names in its own parametrization. |
+| Parametrize | Recursive literals/any direct `Name`/`ids`, plus rejected expressions | Depth-first fixtures assert one stable diagnostic and no Name lookup; no BinOp/lambda/subscript decorator arguments. |
+| Dynamic/rejection | Alias/star/from/unittest; direct dynamic import forms and literal import targets | Assert `unsupported-dynamic-import` ownership; ordinary strings pass. |
+| Evidence | Repository fixtures/tests | Negative source remains ordinary string fixture content; final root scan proves the replacement suite and all first-party files pass. |
+| Filesystem | Excluded entry/subtree and all limits | Mock `lstat`/`scandir`; root uncounted, exclusions count, #100001 pre-classification. |
+| Isolation/meta | No runtime execution; no silent grammar broadening | Hostile `conftest.py`; mutation tests remove a category check and must fail. |
+| Recipe | Scanner precedes Pytest | Sentinel recipe test; retain PR1/PR2A version tests. |
 
 ## Migration / Rollout
 
-No migration required. Apply re-verifies the action pin; if it cannot, it stops rather than using a tag or guessed SHA. Roll back by reverting the atomic harness commit. Strict TDD stays disabled until the next runtime change.
+Migration is not executed. Preserve/hash revised exploration, proposal, spec, design; regenerate tasks/apply-progress; then restore blocked PR2B files from `f505c81`. Before invoking the new validator on the repository tree, replace `tests/architecture/test_focused_test_scanner.py` wholesale, then migrate local-UV lambdas and `_FAILURE_PREFIXES[...]` decorator values to direct helpers/constants. The old suite is never a future-validator acceptance input; after replacement, rebuild validator/tests and require the full included tree to pass. Keep revised artifacts/tasks; no blanket reset.
+
+Stale staged implementation and apply-progress statements are current-state evidence, not conformance claims. Apply cleans the stale apply-progress claims while implementing regenerated tasks. Engram #3588 grants a size exception only to PR2B; PR2A, PR3, and PR4 have no size exception.
 
 ## Open Questions
 
