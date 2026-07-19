@@ -11,3 +11,16 @@
 
 # CodeGraph local index (tool-owned .gitignore inside preserves itself)
 .codegraph/
+
+# Python development environment (uv-managed)
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.pyright_cache/
+.uv-cache/
+*.egg-info/
+dist/
+build/
+htmlcov/
+.coverage
