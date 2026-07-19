@@ -2,7 +2,7 @@
 
 This document is the shared development route for OpsKnowledge: a bilingual technical knowledge platform over approved, versioned runbooks, ADRs, and operational policies. It records the current product decisions and assigns each capability to the future SDD phase where it belongs.
 
-No SDD change is active yet. When implementation begins, each candidate change below must run through its own SDD lifecycle and remain independently reviewable and reversible.
+No SDD change is active. The test-harness bootstrap is complete; each future candidate change below must run through its own SDD lifecycle and remain independently reviewable and reversible.
 
 ## Product boundary
 
@@ -28,6 +28,10 @@ No SDD change is active yet. When implementation begins, each candidate change b
 
 ```text
 0. Product baseline and evaluation assets
+                 ↓
+0. Test-harness bootstrap
+                 ↓
+Pre-Phase 1 CI hardening
                  ↓
 1. Minimal grounded OpsKnowledge core
                  ↓
@@ -91,6 +95,7 @@ No SDD change is active yet. When implementation begins, each candidate change b
 
 - [x] `define-dental-guidance-domain-and-corpus` (superseded by `reposition-rag-as-portfolio-platform`)
 - [x] `define-rag-platform-architecture`
+- [x] `bootstrap-opsknowledge-test-harness`
 - [ ] `build-opsknowledge-evaluation-dataset`
 - [ ] `add-approved-domain-terminology-map`
 
@@ -98,6 +103,18 @@ No SDD change is active yet. When implementation begins, each candidate change b
 
 - `define-dental-guidance-domain-and-corpus` — complete and superseded by `reposition-rag-as-portfolio-platform`. Historical SDD artifacts: Engram `sdd/define-dental-guidance-domain-and-corpus/{proposal (#3122), spec (#3125), design (#3133), tasks (#3134)}`. OpsKnowledge replacement artifacts: Engram `sdd/reposition-rag-as-portfolio-platform/{proposal (#3226), spec (#3227), design (#3228), tasks (#3229)}`.
 - `define-rag-platform-architecture` — complete (documentation only; no runtime, manifests, or lockfiles). Establishes the shared technology and architecture baseline: feature-organized modular monolith with hexagonal boundaries, prototype stack (FastAPI/React/Vite, PostgreSQL/pgvector, SQLAlchemy 2/Alembic/Psycopg 3, Docling, public OpenAI), Azure migration mapping with TI gates, data ownership/lifecycle, index lifecycle concurrency/revocation, atomic query persistence, accepted public-OpenAI free-text demo risk, and dependency governance. Artifacts: `AGENTS.md` (normative contributor contract), `governance/direct-dependencies.yaml` (governance evidence template), `docs/architecture/platform-architecture.md` (detailed architecture reference). SDD artifacts: Engram `sdd/define-rag-platform-architecture/{proposal (#3161), spec (#3162), design (#3163), tasks (#3194)}`. Implementation changes must establish the test harness first, then re-evaluate Strict TDD (testing baseline #3111).
+- `bootstrap-opsknowledge-test-harness` — complete. The bootstrap chain merged to `master` at `425f7ec`; its canonical local and GitHub Actions gate passed with 111 tests.
+
+## Pre-Phase 1 — CI hardening
+
+**Objective:** Close the remaining CI-platform gaps after the test-harness bootstrap and before product implementation begins.
+
+**Ordering:** Both changes follow the completed Phase 0/test-harness boundary and precede `build-minimal-grounded-opsknowledge-core`. The scanner hardening is required before the next implementation PR. The Actions pin refresh is independently reviewable and reversible, so it remains a separate change. Neither change is Phase 9 product observability work.
+
+**Candidate SDD changes:**
+
+- [ ] `harden-focused-test-scanner-import-aliases`
+- [ ] `refresh-github-actions-node-runtime-pins`
 
 ## Phase 1 — Minimal grounded OpsKnowledge core
 
@@ -531,4 +548,4 @@ Do not create one change named `build-complete-rag-platform`. Prefer bounded cha
 
 ## Next step
 
-Phase 0 documentation baseline is complete: `define-dental-guidance-domain-and-corpus` (superseded by `reposition-rag-as-portfolio-platform`) and `define-rag-platform-architecture` are both done (see Phase 0 completion notes). Before implementation begins, obtain the pending Phase 0 and Phase 8 inputs. When implementation is authorized, the next bounded changes are the evaluation dataset (`build-opsknowledge-evaluation-dataset`), the terminology map (`add-approved-domain-terminology-map`), and the test harness bootstrap; do not begin with infrastructure or UI implementation. Architecture baseline and contributor contract: `AGENTS.md` and `docs/architecture/platform-architecture.md`. Dependency governance evidence: `governance/direct-dependencies.yaml`. Each implementation change must establish the test harness first, then re-evaluate Strict TDD (testing baseline #3111).
+Phase 0 documentation baseline and the test-harness bootstrap are complete (see Phase 0 completion notes). Before Phase 1 implementation, complete `harden-focused-test-scanner-import-aliases`; `refresh-github-actions-node-runtime-pins` also belongs in this pre-Phase-1 CI-hardening boundary and remains independent for review and rollback. Obtain the pending Phase 0 and Phase 8 inputs before beginning product implementation. Architecture baseline and contributor contract: `AGENTS.md` and `docs/architecture/platform-architecture.md`. CI contributor rules: `docs/contributing/ci.md`. Dependency governance evidence: `governance/direct-dependencies.yaml`.

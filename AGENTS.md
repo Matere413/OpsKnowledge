@@ -82,9 +82,14 @@ These are two separate concerns. Do not merge them, do not generalize the synthe
 
 ## Testing, CI, and OpenAPI
 
-- **Bootstrap invariant (future):** when a runtime stack exists, `make ci` SHALL restore locks, reconcile dependency evidence, and run Ruff, Pyright, unit, architecture, integration, OpenAPI/client drift, focused-test prohibition, vulnerability, and license checks. No runtime stack, test runner, `Makefile`, or CI pipeline exists yet; this is a mandatory bootstrap gate for the first implementation change, not a current capability.
-- No runtime stack or test runner exists yet. Implementation changes must establish the test harness first, then re-evaluate Strict TDD.
+- **CI gate:** `make ci` is the required canonical local gate and MUST pass before a change is submitted. It is fail-closed; contributors MUST NOT bypass, narrow, or reimplement it in GitHub Actions.
+- **Contributor rules:** `docs/contributing/ci.md` defines the required local workflow, focused-test policy, frozen dependency restore, and GitHub Actions adapter rules. `Makefile`, `.github/workflows/ci.yml`, and their contract tests remain the executable truth.
 - **OpenAPI (future):** FastAPI SHALL generate the canonical OpenAPI artifact at `apps/api/openapi/openapi.json` and the TypeScript client at `apps/web/src/api/generated.ts`; CI SHALL check for client drift once the bootstrap exists. Drift direction is FastAPI → OpenAPI artifact (`apps/api/openapi/openapi.json`) → TypeScript client (`apps/web/src/api/generated.ts`). These are future bootstrap acceptance gates, not current capabilities.
+
+## Brand and interface design
+
+- **Brand contract:** `docs/brand/brand-guide.md` is the authoritative visual, typography, voice, motion, and accessibility reference for product interfaces.
+- UI changes MUST follow its tokens, interaction rules, responsive guidance, and implementation checklist. A prototype or visual reference may demonstrate an approach, but it does not supersede the brand guide.
 
 ## Changes requiring SDD
 
@@ -104,6 +109,8 @@ Do not create one change named `build-complete-rag-platform`. Prefer bounded, in
 
 - Product boundary, phases, and cross-phase safety invariants: `RAG_ROADMAP.md`
 - Architecture diagrams, module tree, data model, flows, Azure mapping, risk register, traceability: `docs/architecture/platform-architecture.md`
+- CI contributor workflow and policy: `docs/contributing/ci.md`
+- Brand and interface design rules: `docs/brand/brand-guide.md`
 - Dependency governance template: `governance/direct-dependencies.yaml`
 - SDD artifacts per change: Engram topics `sdd/<change-name>/{proposal, spec, design, tasks}`
 
