@@ -1,14 +1,28 @@
 # Apply Progress: bootstrap-opsknowledge-test-harness
 
 **Mode**: Standard (Strict TDD disabled)
-**Delivery**: feature-branch-chain; current slice is PR2B, child of `f505c81`; Engram #3588 grants a PR2B-only size exception. PR3/PR4 retain no exception.
+**Delivery**: feature-branch-chain; PR3 is the child of PR2B commit `9a5f95e` on `build/bootstrap-test-harness-pr3-audit-boundaries`. Engram #3658 grants a PR3-only size exception; PR4 retains no exception.
+
+## Current PR3 Status
+
+- Remediated confirmed PR3 4R findings: dynamic `importlib` module/import-function aliases propagate through ordinary and annotated simple-name assignment chains; invalid/non-directory roots and all observed symlinks fail closed; production dependencies reconcile deterministically against complete approved governance entries, rejecting empty or whitespace-only risk levels and normalized documented pending placeholders in approved approval metadata without changing approvals; and the audit executable is passed only as argv data, never expanded in a shell command position.
+- Completed PR3 tasks 2.1–3.3: dependency-boundary AST scanner, one-call bounded `pip-audit` wrapper, ordered Makefile dependency/audit/license stages, and behavior-first architecture/unit/recipe tests.
+- `make ci` now succeeds through the license inventory without compatibility-policy claims. The dependency map covers only excluded distributions (`langchain`, `llamaindex`, `redis`, `kubernetes`); non-importable policy labels remain declaration-only and governance files were not changed.
+- Verification: earlier execution evidence is superseded by the final post-fix checks. PR2B verification/review evidence below is historical evidence; PR3 changes invalidate its runtime-review binding and require a later formal PR3 verification/review pass.
+- PR3 boundary: starts at `9a5f95e` and ends with audit/dependency/license/fail-fast work only. PR4 workflow adapter/tasks 4.1–4.2 remain unchecked and out of scope.
+- PR3 accounting is recomputed from the final staged snapshot against `9a5f95e`, counting tracked changes and intended new files as additions: implementation/tests `+756/-22 = 778`; planning artifacts `+88/-42 = 130`; total `908` changed lines across 10 files. Engram #3681 approved only the superseded 815-line snapshot; #3658 remains the PR3-only exception for this >400-line slice, while PR4 has no exception. The preserved staged task/verification records are included in this exact snapshot accounting.
+
+### PR3 Rollback / Fix-Forward
+
+- **Rollback:** restore the complete PR3 snapshot-owned paths from `9a5f95e`: `Makefile`, `scripts/ci/check_dependency_boundaries.py`, `scripts/ci/run_uv_command.py`, `scripts/ci/run_vulnerability_audit.py`, `tests/architecture/test_dependency_boundaries.py`, `tests/unit/test_audit_wrapper.py`, `tests/ci/test_local_uv_version.py`, and this change's `tasks.md`/`apply-progress.md`. Restore the staged `verify-report.md` only when deliberately discarding its PR2B historical-evidence update; otherwise preserve that staged PR2B evidence. This retains committed PR2B runtime history.
+- **Fix-forward:** retain the PR3 boundary, correct only the listed PR3 paths, rerun focused regressions, Ruff, Pyright, full Pytest, and `make ci`, then refresh PR3 verification/review evidence. Do not alter governance approvals, PR2B runtime artifacts, or PR4 workflow files.
 
 ## Current PR2B Rebuild Status
 
 - Completed regenerated tasks: 1.1–1.3, 2.1–2.6, 3.1–3.3, and 4.1–4.2. The scanner has no alias/value resolver, uses finite AST-shape checks, and runs before Pytest.
 - Independent final 4R review completed after remediating confirmed security, reliability, readability, and resilience findings. Focused reliability revalidation returned `No findings.`; focused documentary readability returned `No findings. Merge verdict: APPROVE`.
 - Historical PR2B completion claims below are **superseded audit evidence**, not current conformance evidence. The previous resolver/detector record is retained only to document its rejection.
-- **Accounting rule (Engram #3588):** PR2B's prior 800-line implementation/test cap is replaced by a PR2B-only size exception. Planning remains separately reported; PR3/PR4 retain no exception.
+- **Historical accounting rule (Engram #3588):** PR2B's prior 800-line implementation/test cap is replaced by a PR2B-only size exception. PR3 has its separate #3658 exception; PR4 retains no exception.
 - The corrected scanner is rebuilt from `f505c81` without semantic alias/value resolution. Accounting and rollback/fix-forward evidence appear below; no unrelated scope is authorized.
 
 ## Size Exceptions (approved)
@@ -17,7 +31,7 @@
 The tracker PR is documentation-only (SDD planning artifacts + apply-progress) with **850 insertions across 7 files** (`git diff --shortstat master...chore/bootstrap-test-harness-tracker`). The user approved a `size:exception` for the tracker PR; it remains draft/no-merge until all child PRs (PR1–PR4) are reviewed and integrated.
 
 ### PR1 exception
-The user approved a `size:exception` for PR1 because 517 of its 575 changed lines are the generated, indivisible `uv.lock` lockfile. The manifest (`pyproject.toml`, `.python-version`, `.gitignore`) and the generated lockfile are one atomic reproducible unit. PR2A, PR3, and PR4 retain focused chained boundaries with no exception; PR2B has the separate #3588 exception.
+The user approved a `size:exception` for PR1 because 517 of its 575 changed lines are the generated, indivisible `uv.lock` lockfile. The manifest (`pyproject.toml`, `.python-version`, `.gitignore`) and the generated lockfile are one atomic reproducible unit. PR2A and PR4 retain focused chained boundaries with no exception; PR2B has #3588 and PR3 has the separate #3658 exception.
 
 ## Cumulative Task State
 
@@ -38,10 +52,10 @@ The user approved a `size:exception` for PR1 because 517 of its 575 changed line
 
 ### Historical superseded PR2B implementation (audit evidence only)
 - [x] The previous staged scanner claimed resolver-based alias handling, dynamic `getattr`, recursive containers, generic focus checks, and TOCTOU protection. Those claims are superseded by the pure finite-syntax design and MUST NOT be read as current behavior. The retained entry records the rejected implementation history only.
-- [x] **Superseded audit history:** Engram #3488 formerly limited PR2B to 800 lines. Engram #3588 replaces that cap with the current PR2B-only size exception; PR3 and PR4 retain no exceptions.
+- [x] **Superseded audit history:** Engram #3488 formerly limited PR2B to 800 lines. Engram #3588 replaces that cap with the current PR2B-only size exception; PR3 separately has #3658 and PR4 retains no exception.
 
-### Phase 3: NOT STARTED
-- [ ] Complete dependency boundary, audit, license, and fail-fast work; final `make ci` exits zero.
+### Phase 3: PR3 COMPLETE (uncommitted)
+- [x] Complete dependency boundary, audit, license, and fail-fast work; final `make ci` exits zero.
 
 ### Phases 4–5: NOT STARTED
 
@@ -55,7 +69,7 @@ master (03a67fb)
        └─ build/bootstrap-test-harness-pr1-packaging   [PR1 PR targets tracker; size:exception]
 ```
 
-Targeting chain (feature-branch-chain): tracker draft/no-merge targets `master`; PR1 targets tracker; PR2A targets PR1; PR2B targets PR2A; PR3 targets PR2B; PR4 targets PR3. Size exceptions are scoped to tracker docs, the PR1 generated lockfile, and PR2B under Engram #3588; PR2A, PR3, and PR4 have no exception.
+Targeting chain (feature-branch-chain): tracker draft/no-merge targets `master`; PR1 targets tracker; PR2A targets PR1; PR2B targets PR2A; PR3 targets PR2B; PR4 targets PR3. Size exceptions are scoped to tracker docs, the PR1 generated lockfile, PR2B under Engram #3588, and PR3 under #3658; PR2A and PR4 have no exception.
 
 ### Immutable baseline SHAs
 | SHA | Role |
@@ -132,7 +146,7 @@ The tracker and PR1 branches went through multiple local rebases during topology
 
 ## Resume / Next Steps
 - PR2B implemented locally on `build/bootstrap-test-harness-pr2b-focused-test-scanner` (child of `f505c81`); NOT committed/pushed/PR'd; independent review approved.
-- Next: proceed to SDD verification/archive handoff. PR3 is not started.
+- Historical next step superseded: PR3 is now complete; PR4 and final verification/review remain pending.
 
 ## PR2B (local, uncommitted; child of `f505c81`; PR2B-only `size:exception`)
 - Exception evidence: Engram decision **#3588** replaces the prior PR2B 800-line implementation/test cap. It explicitly does **not** apply to PR3 or PR4 and authorizes no unrelated scope.
@@ -140,5 +154,5 @@ The tracker and PR1 branches went through multiple local rebases during topology
 - Scanner behavior is limited to pure finite syntax: direct prohibited forms, explicit alias/indirection rejection, direct runtime controls, `pytestmark` mutation categories, deterministic deduplicated diagnostics, and bounded stable-tree traversal. It makes no semantic, generic-production-focus, or TOCTOU claim.
 - **Superseded audit note:** earlier fresh-review claims are historical audit evidence only. The current final review status is the independently approved 4R cycle recorded above.
 - Final staged/full snapshot against `f505c81`: +1,182/-500 = 1,682 lines. The index and worktree match exactly; there is no remaining unstaged overlay.
-- Final full-worktree categories: implementation/test +835/-26 = 861 lines (`Makefile`, scanner, scanner tests, local-UV tests); planning/config +347/-474 = 821 lines (apply-progress, design, exploration, proposal, spec, tasks, config). PR2B has the #3588 exception; PR3/PR4 do not.
+- Final PR2B full-worktree categories (historical): implementation/test +835/-26 = 861 lines (`Makefile`, scanner, scanner tests, local-UV tests); planning/config +347/-474 = 821 lines (apply-progress, design, exploration, proposal, spec, tasks, config). PR2B has #3588; PR3 now separately has #3658; PR4 has no exception.
 - Rollback boundary: `f505c81` is both an ancestor and the current checked-out PR2B base. No commit exists. To discard PR2B atomically, run `git restore --source=f505c81 --staged --worktree -- Makefile scripts/ci/check_focused_tests.py tests/architecture/test_focused_test_scanner.py tests/ci/test_local_uv_version.py openspec/changes/bootstrap-opsknowledge-test-harness openspec/config.yaml`. Fix-forward retains this boundary, corrects only PR2B paths, reruns the recorded gates, and targets the immediate PR2A parent.

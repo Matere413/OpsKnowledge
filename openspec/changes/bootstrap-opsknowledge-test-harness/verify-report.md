@@ -1,6 +1,28 @@
-# Verification Report: bootstrap-opsknowledge-test-harness (PR2B)
+```yaml
+schema: gentle-ai.verify-result/v1
+evidence_revision: staged PR3 snapshot against 9a5f95e
+verdict: pass
+blockers: 0
+critical_findings: 0
+requirements: 7/8
+scenarios: 36/37
+test_command: uv run --frozen pytest
+test_exit_code: 0
+test_output_hash: sha256:052bbde05d1092d3dc23a55d8799a360c4a2a443d9ea3514e18a36338602cae6
+build_command: uv run --frozen pyright
+build_exit_code: 0
+build_output_hash: sha256:6d88a1b220adb7a3d62092b6e38431f0b3fe8babe9864fab90e5849766260332
+scope: PR3 only; PR4 tasks 4.1-4.2 pending and out of scope
+snapshot: 10 files, +844/-64 = 908 against 9a5f95e; index equals tested worktree; no untracked overlay
+exceptions: split threshold #3658; exact review-budget snapshot #3681; neither applies to PR4
+review: Judgment Day Round 4 dual approval; both judges approved, no findings
+commands: focused guard, Ruff check/format, Pyright, 96 focused tests, 102 full tests, and make ci all exit 0
+acceptance: aliases including AnnAssign; roots/symlinks fail closed; governance/requirements metadata; argv-safe UV; CI ordering
+focused_tests: 96 passed
+full_tests: 102 passed
+lineage: remaining body is preserved historical PR2B evidence, not a PR3 or PR4 completion claim
+```
 
-**Date:** 2026-07-16
 **Artifact store:** Hybrid (OpenSpec + Engram `opsknowledge`)
 **Mode:** Standard; Strict TDD disabled by `openspec/config.yaml` and the approved testing-capability record.
 **Baseline:** `f505c810539508deccb382178e476f85c86eafd1`
