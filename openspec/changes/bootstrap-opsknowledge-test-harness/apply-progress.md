@@ -1,9 +1,25 @@
 # Apply Progress: bootstrap-opsknowledge-test-harness
 
 **Mode**: Standard (Strict TDD disabled)
-**Delivery**: feature-branch-chain; PR3 is the child of PR2B commit `9a5f95e` on `build/bootstrap-test-harness-pr3-audit-boundaries`. Engram #3658 grants a PR3-only size exception; PR4 retains no exception.
+**Delivery**: feature-branch-chain; PR4 is the child of PR3 commit `14e3ed935783a1c85a15c0f8cd686ac56e5b1b67` on `ci/bootstrap-test-harness-pr4-actions-adapter`. Engram #3658 grants a PR3-only size exception; PR4 has no exception.
 
-## Current PR3 Status
+## Current PR4 Status
+
+- Completed tasks 4.1–4.2: `.github/workflows/ci.yml` provides only `push` and `pull_request` triggers, `contents: read` permissions, an immutable and commented `actions/checkout` SHA with `persist-credentials: false`, an immutable and commented `astral-sh/setup-uv` SHA, `version: "0.11.29"`, an exact `uv self version --short` assertion, and exactly one `make ci` step.
+- Static workflow contract tests at `tests/architecture/test_github_actions_workflow.py` enforce the exact complete job and step sequence: the `ci` job may contain only `runs-on`, `timeout-minutes`, and `steps`; steps are ordered checkout v4.2.2 and setup-uv v5.4.2 actions plus exact uv assertion and standalone `make ci` steps. The closed contracts reject job- and step-level gate-bypass controls including `continue-on-error` and `if: always()`, a third fully pinned/commented action, shell expansions, extra runs, and permission/checkout/timeout regressions.
+- Apply-time upstream verification: `git ls-remote https://github.com/astral-sh/setup-uv.git refs/tags/v5.4.2` returned `d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86`; the pinned workflow reference matches. `actions/checkout` v4.2.2 was also verified as `11bd71901bbe5b1630ceea73d27597364c9af683`.
+- Review remediation: the sole `ci` job has `timeout-minutes: 30` and an exact key contract; exact step dictionaries prohibit all unapproved step-level keys.
+- Judgment Day A1-JOB remediation: job-level `continue-on-error: true` is now rejected by the exact `ci` job-key contract and its focused mutation regression.
+- Verification: focused workflow tests passed (9 passed); `make ci` passed completely (Ruff, Pyright, 111 tests, dependency boundaries, audit, and license inventory); `git diff --check` passed.
+- PR4 accounting versus `14e3ed935783a1c85a15c0f8cd686ac56e5b1b67`: `+241/-6 = 247` changed lines, below the 800-line budget; no exception used.
+- PR4 boundary: starts at PR3 commit `14e3ed935783a1c85a15c0f8cd686ac56e5b1b67` and ends with the Actions adapter plus its static tests and cumulative task/apply-progress updates only. No formal SDD verification or archive was performed.
+
+### PR4 Rollback / Fix-Forward
+
+- **Rollback:** remove `.github/workflows/ci.yml` and `tests/architecture/test_github_actions_workflow.py`, then restore this change's `tasks.md` and `apply-progress.md` from PR3. This returns the exact PR3 adapter-free state without changing PR3 implementation.
+- **Fix-forward:** correct only the workflow or its static contract tests, re-verify immutable action SHAs upstream, then rerun focused workflow tests and `make ci` before updating completion evidence.
+
+## Prior PR3 Status
 
 - Remediated confirmed PR3 4R findings: dynamic `importlib` module/import-function aliases propagate through ordinary and annotated simple-name assignment chains; invalid/non-directory roots and all observed symlinks fail closed; production dependencies reconcile deterministically against complete approved governance entries, rejecting empty or whitespace-only risk levels and normalized documented pending placeholders in approved approval metadata without changing approvals; and the audit executable is passed only as argv data, never expanded in a shell command position.
 - Completed PR3 tasks 2.1–3.3: dependency-boundary AST scanner, one-call bounded `pip-audit` wrapper, ordered Makefile dependency/audit/license stages, and behavior-first architecture/unit/recipe tests.
@@ -57,7 +73,11 @@ The user approved a `size:exception` for PR1 because 517 of its 575 changed line
 ### Phase 3: PR3 COMPLETE (uncommitted)
 - [x] Complete dependency boundary, audit, license, and fail-fast work; final `make ci` exits zero.
 
-### Phases 4–5: NOT STARTED
+### Phase 4: PR4 Workflow Adapter — COMPLETE
+- [x] 4.1 Added the least-privilege GitHub Actions adapter.
+- [x] 4.2 Added static workflow contract tests and apply-time setup-uv SHA verification evidence.
+
+### Phase 5: Formal verification/archive — NOT STARTED
 
 ## Git Topology (feature-branch-chain)
 

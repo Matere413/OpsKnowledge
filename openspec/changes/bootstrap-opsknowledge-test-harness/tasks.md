@@ -45,7 +45,7 @@ PR3 has a maintainer-approved `size:exception` (Engram #3658) for this slice onl
 - [x] 3.2 Add `tests/unit/test_audit_wrapper.py` for all classifications, argv-safe configured-UV execution, output/exit propagation, and recovery rerun.
 - [x] 3.3 Extend `tests/ci/test_local_uv_version.py` with PR3-stage fail-fast sentinels; verify final `make ci` exits zero.
 
-## Phase 4: PR4 Workflow Adapter (Pending)
+## Phase 4: PR4 Workflow Adapter (Complete)
 
-- [ ] 4.1 Create `.github/workflows/ci.yml` with pinned `astral-sh/setup-uv` SHA, read-only permissions, credential-free checkout, exact `uv self version --short`, and one `make ci` step.
-- [ ] 4.2 Add static workflow tests under `tests/architecture/` and re-fetch/re-verify the setup-uv SHA at apply time; record evidence in the final verification report.
+- [x] 4.1 Create `.github/workflows/ci.yml` with pinned `astral-sh/setup-uv` SHA, read-only permissions, credential-free checkout, exact `uv self version --short`, and one `make ci` step.
+- [x] 4.2 Add static workflow tests under `tests/architecture/` and re-fetch/re-verify the setup-uv SHA at apply time; record evidence in the final verification report.
