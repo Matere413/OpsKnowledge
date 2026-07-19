@@ -2,59 +2,60 @@
 
 ## Intent
 
-Establish the smallest reproducible Python quality harness before runtime work begins. This makes future implementation reviewable through one local and remote contract while preserving the documented architecture, safety, and dependency-governance boundaries.
+Establish a Python quality harness. PR2B replaces bypass-prone detection with a finite structural test-API whitelist. PR1/PR2A safety invariants remain intact.
 
 ## Scope
 
 ### In Scope
-- Python 3.12 packaging via `pyproject.toml`, an exact-pinned development-tool lockfile, and Pytest, Ruff, and Pyright configuration (Pyright inline in `pyproject.toml`).
-- Unit and architecture tests for dependency direction, focused-test prohibition, and reconciliation of production dependencies against `governance/direct-dependencies.yaml`.
-- A Makefile whose `make ci` restores the frozen lock and runs all available quality, governance, dev-lock vulnerability, and license checks.
-- A thin GitHub Actions workflow that invokes `make ci` without duplicating its logic.
+- Locked Python/governance checks behind `make ci` and thin GitHub Actions.
+- The whitelist applies globally to every executable structural pytest/unittest API use in included first-party Python; ordinary strings/docs are outside validation.
+- Every other test-API AST use/reference fails closed with path, line, rejected form, and safe direct-syntax remediation.
+- Collection-independent scanning uses exclusions and a global 100,000-entry bound; observable filesystem/parse errors and symlinks fail closed.
 
 ### Out of Scope
-- Frontend, PostgreSQL, Compose, cloud infrastructure, application features, and broad runtime implementation.
-- Direct production dependencies or changes to dependency approvals; development tools remain outside the governance evidence record.
-- Integration tests, OpenAPI/client drift, pre-commit hooks, and enabling Strict TDD. Strict TDD is re-evaluated with the next runtime change.
+- Runtime implementation and production dependency/approval changes.
+- Blacklist-style detection, semantic resolution, runtime inspection, Python emulation, and TOCTOU/race-resistance claims. CI assumes a stable tree.
+- PR1/PR2A runtime implementation or accepted behavior; PR2B governance artifacts may be revised.
 
 ## Capabilities
 
 ### New Capabilities
-- `test-harness`: Reproducible Python quality, test, and dependency-governance gate exposed through `make ci`.
+- `test-harness`: Structural test-API whitelist through `make ci`.
 
 ### Modified Capabilities
-- None.
+- None; `test-harness` has no corresponding current specification.
 
 ## Approach
 
-Use `uv` with Python 3.12 and a committed lockfile; keep all tooling development-only and exactly pinned in the lock. Add Pytest, Ruff, Pyright, architecture tests, and dev-lock audit/license checks behind Make targets. GitHub Actions remains a thin adapter over `make ci`, preventing local/remote drift.
+Retain locked `uv`/`make ci`. Supersede blacklist detection: prohibited-form enumeration cannot converge. Only named direct pytest/unittest forms are allowed; aliases, `getattr`, dunder/subscript access, computed receivers, and indirection are outside the whitelist. Dynamic-import policy owns finite direct forms with exact literal `pytest`/`unittest` targets and rejects syntactic `importlib` aliases/import-from access without resolving values; standard-library/project imports remain unrestricted. Other API uses/references fail closed. Intentional false positives require direct syntax or a future change. Scanner reads bytes/metadata only, with a global 100,000-entry bound and stable-tree/no-TOCTOU claim. Rebuild from `f505c81`; staged PR2B remains evidence. Engram #3588 grants a size exception only to PR2B; PR2A, PR3, and PR4 have no size exception. Planning artifacts are separate.
 
 ## Affected Areas
 
 | Area | Impact | Description |
 |---|---|---|
-| `pyproject.toml`, `uv.lock`, `.python-version` | New | Packaging, exact development-tool resolution, and inline Pyright configuration. |
-| `tests/` | New | Smoke, architecture, and governance reconciliation tests. |
-| `Makefile`, `.github/workflows/ci.yml` | New | Single CI contract and thin remote invocation. |
-| `governance/direct-dependencies.yaml` | Validated only | No approval or dependency entry changes. |
+| Tooling, Makefile, workflow | New | Locked single CI contract. |
+| Scanner, architecture tests | Modified | Whitelist policy. |
+| First-party `**/*.py` | Validated | Coverage, exclusions, global bound. |
+| Governance | Validated | No approval changes. |
 
 ## Risks
 
 | Risk | Likelihood | Mitigation |
 |---|---|---|
-| Dev-lock audit/license findings block CI | Medium | Resolve or explicitly govern findings during implementation; do not weaken checks. |
-| Architecture tests initially have no runtime source to inspect | Low | Keep narrow, durable checks and extend them with each runtime change. |
+| Whitelist false positives | Medium | Direct-syntax remediation or future change. |
+| Filesystem changes | Low | Fail closed; stable-tree, not race resistance. |
 
 ## Rollback Plan
 
-Revert the harness commit as one unit; it adds no runtime behavior, production dependency, data migration, or durable baseline change.
+Revert the PR2B guard slice to `f505c81`, retaining PR1/PR2A.
 
 ## Dependencies
 
-- Python 3.12 and a GitHub Actions runner capable of invoking `make ci`.
+- Python and GitHub Actions.
 
 ## Success Criteria
 
-- [ ] `make ci` reproduces the locked development environment and exits non-zero for quality or governance failures.
-- [ ] GitHub Actions invokes `make ci` successfully without duplicating validation commands.
-- [ ] No direct production dependency or dependency-approval record is added.
+- [ ] `make ci` is locked and fails on errors.
+- [ ] GitHub Actions invokes it without duplicated checks.
+- [ ] No production dependency or approval changes.
+- [ ] CI scans all first-party Python without imports/execution; non-whitelisted test-API AST uses and scan uncertainty fail closed with actionable diagnostics.

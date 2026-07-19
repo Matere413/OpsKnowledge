@@ -1,16 +1,21 @@
 # OpsKnowledge local CI gate — PR2A: Make/uv/order contract.
 # Ordered fail-fast; each stage must pass before the next. Frozen uv.
-# PR2A: uv version, sync, ruff, pyright, pytest. ci reuses ci-pr2a then
-# fails closed at check-focused-tests (PR2B boundary). No PR3 stages.
+# PR2A stages are retained; PR2B scans before Pytest and stops at PR3 audit.
 
 UV ?= uv
 EXPECTED_UV_VERSION := 0.11.29
 
-.PHONY: ci ci-pr2a check-uv-version sync-env check-focused-tests ruff-check ruff-format pyright-check pytest-check
+.PHONY: ci ci-pr2a check-uv-version sync-env check-focused-tests ruff-check ruff-format pyright-check pytest-check check-audit
 
-ci: ci-pr2a
+ci: check-uv-version
+	@echo "=== uv version OK ==="
+	$(MAKE) sync-env
 	$(MAKE) check-focused-tests
-	@echo "=== make ci complete ==="
+	$(MAKE) ruff-check
+	$(MAKE) ruff-format
+	$(MAKE) pyright-check
+	$(MAKE) pytest-check
+	$(MAKE) check-audit
 
 ci-pr2a: check-uv-version
 	@echo "=== uv version OK ==="
@@ -36,8 +41,12 @@ sync-env:
 	@echo "=== frozen sync OK ==="
 
 check-focused-tests:
-	@echo "ERROR: focused-test guard not yet implemented until PR2B." >&2
-	@echo "Remediation: merge PR2B (scripts/ci/check_focused_tests.py) and rerun make ci." >&2
+	$(UV) run --frozen python scripts/ci/check_focused_tests.py .
+	@echo "=== focused-test guard OK ==="
+
+check-audit:
+	@echo "ERROR: audit is not yet implemented until PR3." >&2
+	@echo "Remediation: merge PR3 and rerun make ci." >&2
 	@exit 1
 
 ruff-check:
