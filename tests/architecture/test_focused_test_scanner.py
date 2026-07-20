@@ -10,6 +10,7 @@ from types import ModuleType
 import pytest
 
 SCANNER_PATH = Path(__file__).parents[2] / "scripts/ci/check_focused_tests.py"
+DYNAMIC_IMPORT_REMEDIATION = "remove the dynamic import or use canonical import pytest"
 
 
 def _scanner() -> ModuleType:
@@ -83,6 +84,163 @@ DYNAMIC_SOURCES = [
     "from importlib import import_module as alias\nalias('pytest')\n",
     "import importlib\nimportlib.import_module(name='pytest')\n",
 ]
+
+ALIAS_DYNAMIC_CASES = [
+    (
+        "import importlib\nloader = importlib.import_module\nloader('pytest')\n",
+        [("test_case.py", 3, "unsupported-dynamic-import", DYNAMIC_IMPORT_REMEDIATION)],
+    ),
+    (
+        "import importlib as imports\n"
+        "loader: object = imports.import_module\n"
+        "loader(name='unittest')\n",
+        [
+            ("test_case.py", 1, "unsupported-dynamic-import", DYNAMIC_IMPORT_REMEDIATION),
+        ],
+    ),
+    (
+        "import importlib\nmodule = importlib\nloader = module.import_module\n"
+        "alias = loader\nalias('pytest')\n",
+        [("test_case.py", 5, "unsupported-dynamic-import", DYNAMIC_IMPORT_REMEDIATION)],
+    ),
+    (
+        "loader = __import__\nloader(name='unittest')\n",
+        [("test_case.py", 2, "unsupported-dynamic-import", DYNAMIC_IMPORT_REMEDIATION)],
+    ),
+]
+
+
+@pytest.mark.parametrize(("source", "expected"), ALIAS_DYNAMIC_CASES)
+def test_direct_dynamic_import_aliases_have_canonical_diagnostics(
+    tmp_path: Path, source: str, expected: list[tuple[str, int, str, str]]
+) -> None:
+    assert _scan(tmp_path, source) == expected
+
+
+def test_alias_assignment_uses_rhs_before_rebinding(tmp_path: Path) -> None:
+    source = (
+        "import importlib\nloader = importlib.import_module\nloader = loader\nloader('pytest')\n"
+    )
+    assert _scan(tmp_path, source) == [
+        ("test_case.py", 4, "unsupported-dynamic-import", DYNAMIC_IMPORT_REMEDIATION)
+    ]
+
+
+def test_unconditional_alias_rebinding_invalidates_tracking(tmp_path: Path) -> None:
+    source = (
+        "import importlib\nloader = importlib.import_module\n"
+        "loader = safe_loader\nloader('pytest')\n"
+    )
+    assert _scan(tmp_path, source) == []
+
+
+def test_conditional_alias_rebinding_is_ambiguous(tmp_path: Path) -> None:
+    source = (
+        "import importlib\nloader = importlib.import_module\nif condition:\n"
+        "    loader = safe_loader\nloader('pytest')\n"
+    )
+    assert _scan(tmp_path, source) == [
+        (
+            "test_case.py",
+            5,
+            "ambiguous-dynamic-import-alias",
+            "rewrite to a direct unambiguous dynamic import or remove the dynamic import",
+        )
+    ]
+
+
+def test_conditional_canonical_importlib_rebinding_is_ambiguous(tmp_path: Path) -> None:
+    source = (
+        "import importlib\nif condition:\n    importlib = safe_module\n"
+        "importlib.import_module('pytest')\n"
+    )
+    assert _scan(tmp_path, source) == [
+        (
+            "test_case.py",
+            4,
+            "ambiguous-dynamic-import-alias",
+            "rewrite to a direct unambiguous dynamic import or remove the dynamic import",
+        )
+    ]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import importlib\nloader = importlib.import_module\ndef inner():\n    loader('pytest')\n",
+        "import importlib\nloader = importlib.import_module\nasync def inner():\n"
+        "    loader('pytest')\n",
+        "import importlib\nloader = importlib.import_module\nclass Inner:\n    loader('pytest')\n",
+        "import importlib\nloader = importlib.import_module\ninner = lambda: loader('pytest')\n",
+    ],
+)
+def test_aliases_do_not_cross_lexical_boundaries(tmp_path: Path, source: str) -> None:
+    assert _scan(tmp_path, source) == []
+
+
+@pytest.mark.parametrize(
+    ("source", "line"),
+    [
+        ("import importlib\ndef inner():\n    importlib.import_module('pytest')\n", 3),
+        ("import importlib\nasync def inner():\n    importlib.import_module('pytest')\n", 3),
+        ("import importlib\nclass Inner:\n    importlib.import_module('pytest')\n", 3),
+        ("import importlib\ninner = lambda: importlib.import_module('pytest')\n", 2),
+    ],
+)
+def test_lexical_body_canonical_dynamic_import_is_diagnosed(
+    tmp_path: Path, source: str, line: int
+) -> None:
+    assert _scan(tmp_path, source) == [
+        ("test_case.py", line, "unsupported-dynamic-import", DYNAMIC_IMPORT_REMEDIATION)
+    ]
+
+
+def test_loop_rebinding_does_not_invalidate_dynamic_import_alias(tmp_path: Path) -> None:
+    source = (
+        "import importlib\nloader = importlib.import_module\nwhile condition:\n"
+        "    loader = safe_loader\nloader('pytest')\n"
+    )
+    assert _scan(tmp_path, source) == [
+        ("test_case.py", 5, "unsupported-dynamic-import", DYNAMIC_IMPORT_REMEDIATION)
+    ]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import importlib\nloaders = [importlib.import_module]\nloaders[0]('pytest')\n",
+        "import importlib\nloader = getattr(importlib, 'import_module')\nloader('pytest')\n",
+        "import importlib\nholder.loader = importlib.import_module\nholder.loader('pytest')\n",
+        "import importlib\ndef wrapper():\n    return importlib.import_module\n"
+        "loader = wrapper()\nloader('pytest')\n",
+    ],
+)
+def test_closed_alias_grammar_does_not_resolve_arbitrary_expressions(
+    tmp_path: Path, source: str
+) -> None:
+    assert _scan(tmp_path, source) == []
+
+
+def test_repeated_alias_scans_are_ordered_deduplicated_and_equivalent(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    nested = root / "nested"
+    nested.mkdir(parents=True)
+    (root / "z.py").write_text("import unittest\n")
+    (root / "a.py").write_text(
+        "import importlib\nloader = importlib.import_module\nloader('pytest')\n"
+    )
+    (nested / "b.py").write_text(
+        "import importlib\nloader = importlib.import_module\nloader('unittest')\n"
+    )
+
+    scanner = _scanner()
+    first = scanner.scan_tree(root)  # type: ignore[attr-defined]
+    second = scanner.scan_tree(root)  # type: ignore[attr-defined]
+
+    assert first == sorted(set(first))
+    assert repr(first).encode() == repr(second).encode()
+
+
 RESOURCE_CASES = [
     ("MAX_ENTRIES", 0, "resource-limit-entries", {"one.txt": "x"}),
     ("MAX_FILES", 0, "resource-limit-files", {"one.py": "pass\n"}),

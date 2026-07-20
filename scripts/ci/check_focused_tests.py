@@ -7,8 +7,11 @@ import os
 import stat
 import sys
 from pathlib import Path
+from typing import Literal
 
 Diagnostic = tuple[str, int, str, str]
+AliasKind = Literal["importlib-module", "dynamic-import-callable", "ambiguous"]
+Environment = dict[str, AliasKind]
 MAX_FILE_BYTES = 1024 * 1024
 MAX_TOTAL_BYTES = 64 * 1024 * 1024
 MAX_FILES = 10_000
@@ -65,6 +68,8 @@ class _Policy(ast.NodeVisitor):
         self.path = path
         self.findings: set[Diagnostic] = set()
         self.handled: set[int] = set()
+        self.environments: list[Environment] = [self._fresh_environment()]
+        self.reported_import_aliases: set[str] = set()
 
     def add(self, node: ast.AST, reason: str, remediation: str = REWRITE) -> None:
         self.findings.add((self.path, getattr(node, "lineno", 0), reason, remediation))
@@ -76,6 +81,10 @@ class _Policy(ast.NodeVisitor):
 
     def visit_Import(self, node: ast.Import) -> None:
         for alias in node.names:
+            if alias.name == "importlib":
+                self._environment()[alias.asname or alias.name] = "importlib-module"
+                if alias.asname is not None:
+                    self.reported_import_aliases.add(alias.asname)
             if alias.name == "pytest" and alias.asname is None:
                 continue
             if alias.name in {"pytest", "unittest"} or alias.name.startswith(
@@ -93,6 +102,11 @@ class _Policy(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        if node.module == "importlib":
+            for alias in node.names:
+                if alias.name in {"import_module", "__import__"}:
+                    self._environment()[alias.asname or alias.name] = "dynamic-import-callable"
+                    self.reported_import_aliases.add(alias.asname or alias.name)
         if (node.module or "").split(".")[0] in {"pytest", "unittest"}:
             self.claim(node, "unsupported-test-api")
             return
@@ -120,7 +134,14 @@ class _Policy(ast.NodeVisitor):
         if _mentions_api(node.value):
             self.claim(node, "unsupported-test-api")
             return
-        self.generic_visit(node)
+        self.visit(node.value)
+        self._assign(
+            node.value, [target.id for target in node.targets if isinstance(target, ast.Name)]
+        )
+        for target in node.targets:
+            if not isinstance(target, ast.Name):
+                self.visit(target)
+        return
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
         if _is_pytestmark_target(node.target):
@@ -129,7 +150,43 @@ class _Policy(ast.NodeVisitor):
         if (node.value and _mentions_api(node.value)) or _mentions_api(node.annotation):
             self.claim(node, "unsupported-test-api")
             return
-        self.generic_visit(node)
+        self.visit(node.annotation)
+        if node.value is not None:
+            self.visit(node.value)
+            if isinstance(node.target, ast.Name):
+                self._assign(node.value, [node.target.id])
+        self.visit(node.target)
+
+    def visit_If(self, node: ast.If) -> None:
+        self.visit(node.test)
+        before = self._environment().copy()
+        self.environments[-1] = before.copy()
+        for statement in node.body:
+            self.visit(statement)
+        body = self._environment().copy()
+        self.environments[-1] = before.copy()
+        for statement in node.orelse:
+            self.visit(statement)
+        otherwise = self._environment().copy()
+        self.environments[-1] = self._merge_environments(body, otherwise)
+
+    def visit_While(self, node: ast.While) -> None:
+        self._visit_control_flow(node)
+
+    def visit_For(self, node: ast.For) -> None:
+        self._visit_control_flow(node)
+
+    def visit_AsyncFor(self, node: ast.AsyncFor) -> None:
+        self._visit_control_flow(node)
+
+    def visit_Try(self, node: ast.Try) -> None:
+        self._visit_control_flow(node)
+
+    def visit_TryStar(self, node: ast.TryStar) -> None:
+        self._visit_control_flow(node)
+
+    def visit_Match(self, node: ast.Match) -> None:
+        self._visit_control_flow(node)
 
     def visit_AugAssign(self, node: ast.AugAssign) -> None:
         if _is_pytestmark_target(node.target):
@@ -152,16 +209,26 @@ class _Policy(ast.NodeVisitor):
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         self._decorators(node.decorator_list)
         self._annotations(node)
-        self.generic_visit(node)
+        self._definition_defaults(node.args)
+        self._scope(node.body)
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
         self._decorators(node.decorator_list)
         self._annotations(node)
-        self.generic_visit(node)
+        self._definition_defaults(node.args)
+        self._scope(node.body)
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
         self._decorators(node.decorator_list)
-        self.generic_visit(node)
+        for expression in (*node.bases, *(keyword.value for keyword in node.keywords)):
+            self.visit(expression)
+        self._scope(node.body)
+
+    def visit_Lambda(self, node: ast.Lambda) -> None:
+        self._definition_defaults(node.args)
+        self.environments.append(self._fresh_environment())
+        self.visit(node.body)
+        self.environments.pop()
 
     def visit_Call(self, node: ast.Call) -> None:
         if id(node) in self.handled:
@@ -291,8 +358,8 @@ class _Policy(ast.NodeVisitor):
         )
 
     def _dynamic_import(self, node: ast.Call) -> bool:
-        spelling = _dotted(node.func)
-        if spelling not in {"__import__", "importlib.import_module", "importlib.__import__"}:
+        kind = self._dynamic_import_kind(node.func)
+        if kind is None:
             return False
         target = (
             node.args[0]
@@ -300,6 +367,13 @@ class _Policy(ast.NodeVisitor):
             else next((keyword.value for keyword in node.keywords if keyword.arg == "name"), None)
         )
         if isinstance(target, ast.Constant) and target.value in {"pytest", "unittest"}:
+            if kind == "ambiguous":
+                self.claim(
+                    node,
+                    "ambiguous-dynamic-import-alias",
+                    "rewrite to a direct unambiguous dynamic import or remove the dynamic import",
+                )
+                return True
             self.claim(
                 node,
                 "unsupported-dynamic-import",
@@ -307,6 +381,81 @@ class _Policy(ast.NodeVisitor):
             )
             return True
         return False
+
+    def _environment(self) -> Environment:
+        return self.environments[-1]
+
+    @staticmethod
+    def _fresh_environment() -> Environment:
+        return {"importlib": "importlib-module", "__import__": "dynamic-import-callable"}
+
+    def _visit_control_flow(self, node: ast.AST) -> None:
+        before = self._environment().copy()
+        self.generic_visit(node)
+        self.environments[-1] = before
+
+    def _assign(self, value: ast.expr, targets: list[str]) -> None:
+        kind = self._classify(value)
+        for target in targets:
+            if kind is None:
+                self._environment().pop(target, None)
+            else:
+                self._environment()[target] = kind
+        if (
+            isinstance(value, ast.Attribute)
+            and isinstance(value.value, ast.Name)
+            and value.value.id in self.reported_import_aliases
+        ):
+            self.reported_import_aliases.update(targets)
+
+    def _classify(self, value: ast.expr) -> AliasKind | None:
+        if isinstance(value, ast.Name):
+            return self._environment().get(value.id)
+        if (
+            isinstance(value, ast.Attribute)
+            and value.attr in {"import_module", "__import__"}
+            and isinstance(value.value, ast.Name)
+            and self._environment().get(value.value.id) == "importlib-module"
+        ):
+            return "dynamic-import-callable"
+        return None
+
+    def _dynamic_import_kind(self, function: ast.expr) -> AliasKind | None:
+        if isinstance(function, ast.Name):
+            if function.id in self.reported_import_aliases:
+                return None
+            return self._environment().get(function.id)
+        if (
+            isinstance(function, ast.Attribute)
+            and function.attr in {"import_module", "__import__"}
+            and isinstance(function.value, ast.Name)
+            and function.value.id not in self.reported_import_aliases
+        ):
+            receiver_kind = self._environment().get(function.value.id)
+            if receiver_kind == "importlib-module":
+                return "dynamic-import-callable"
+            if receiver_kind == "ambiguous":
+                return "ambiguous"
+        return None
+
+    @staticmethod
+    def _merge_environments(body: Environment, otherwise: Environment) -> Environment:
+        return {
+            name: body[name] if body.get(name) == otherwise.get(name) else "ambiguous"
+            for name in body.keys() | otherwise.keys()
+            if body.get(name) is not None or otherwise.get(name) is not None
+        }
+
+    def _scope(self, body: list[ast.stmt]) -> None:
+        self.environments.append(self._fresh_environment())
+        for statement in body:
+            self.visit(statement)
+        self.environments.pop()
+
+    def _definition_defaults(self, arguments: ast.arguments) -> None:
+        defaults = (*arguments.defaults, *(default for default in arguments.kw_defaults if default))
+        for expression in defaults:
+            self.visit(expression)
 
 
 def scan_file(path: Path, root: Path, raw: bytes) -> list[Diagnostic]:
