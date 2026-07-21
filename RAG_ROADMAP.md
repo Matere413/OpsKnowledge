@@ -65,29 +65,21 @@ Pre-Phase 1 CI hardening
 
 **Phase status:** [ ] Completed
 
-**Objective:** Convert the agreed product boundary and real support history into a controlled evaluation foundation.
+**Objective:** Convert the agreed product boundary into a reproducible, controlled bilingual evaluation foundation without requiring unavailable corporate material.
 
 **Scope:**
 
 - Record the actors: readers, contributors, reviewers, and administrators. Operational responsibilities (synchronization, rollback, global pause, contradiction management) are assigned to the `admin` role.
-- Inventory the approved Spanish and English technical entries (`runbooks`, `adrs`, `operational-policies`).
-- Obtain the historical question and support-answer report containing past questions and support answers.
-- Confirm whether the report identifies team-lead answers, escalations, language, category, and resolution dates.
-- Obtain the current support-volume baseline before setting reduction targets.
-- Obtain the internal terminology and abbreviation glossary.
-- Require reviewer and contributor approval for each glossary equivalence.
-- Build representative answerable, ambiguous, contradictory, out-of-scope, and unanswerable cases.
-- Treat historical support answers as evaluation references, not as knowledge sources or automatic ground truth.
-- Verify historical answers against the entry revision that applies to each case.
+- Establish one manifest-controlled, versioned, approved, language-tagged, visibly non-corporate, development-only synthetic sample spanning `runbooks`, `adrs`, and `operational-policies`.
+- Build representative answerable, ambiguous, contradictory, out-of-scope, and unanswerable cases with Spanish/English parity.
+- Keep approved entries as the only answer evidence: every technical claim requires a citation from a current approved entry, and unsupported, out-of-scope, or contradictory cases abstain and recommend a human expert.
+- Keep Spanish and English retrieval isolated before evidence reaches the model.
+- Preserve the development-only synthetic-corpus exception: synthetic entries cannot migrate into a corporate index, and corporate data is never implied or substituted.
+- Treat historical corporate metrics, historical Q&A/support reports, and corporate glossaries as optional future controlled evaluation references only. They are neither current prerequisites nor answer evidence, automatic ground truth, or replacements for approved entries.
 
-**Pending inputs:**
+**Pending input:** One governed synthetic bilingual sample: manifest-controlled, versioned, approved, language-tagged, visibly non-corporate, and development-only across `runbooks`, `adrs`, and `operational-policies`. This is the sole current prerequisite; no corporate material is required or fabricated.
 
-- Historical support baseline metrics.
-- Historical question and support-answer report.
-- Existing bilingual glossary, if available.
-- Initial approved entry sample.
-
-**Expected outputs:** corpus inventory, approved evaluation dataset, terminology map, baseline report, and explicit dataset-governance rules.
+**Expected outputs:** an approved bilingual evaluation-dataset foundation and explicit dataset-governance rules. The first slice targets 50% answerable/grounded cases and 50% abstention/safety cases with Spanish/English parity. Historical corporate metrics, Q&A/support reports, and glossaries may later support controlled evaluation or impact measurement, but never answer evidence or automatic ground truth.
 
 **Canonical contract source:** `define-dental-guidance-domain-and-corpus` (superseded by `reposition-rag-as-portfolio-platform`) is the historical source of canonical domain, corpus, actor, language, evidence, outcome, and placeholder contracts consumed by Phases 1, 2, 4–9. The OpsKnowledge domain contract (Engram: proposal #3226, spec #3227, design #3228, tasks #3229) supersedes it. Historical artifacts (#3122, #3125, #3133, #3134) are retained as audit history and are never deleted. See `openspec/changes/reposition-rag-as-portfolio-platform/supersession-index.md`.
 
@@ -97,13 +89,13 @@ Pre-Phase 1 CI hardening
 - [x] `define-rag-platform-architecture`
 - [x] `bootstrap-opsknowledge-test-harness`
 - [ ] `build-opsknowledge-evaluation-dataset`
-- [ ] `add-approved-domain-terminology-map`
 
 **Completion notes:**
 
 - `define-dental-guidance-domain-and-corpus` — complete and superseded by `reposition-rag-as-portfolio-platform`. Historical SDD artifacts: Engram `sdd/define-dental-guidance-domain-and-corpus/{proposal (#3122), spec (#3125), design (#3133), tasks (#3134)}`. OpsKnowledge replacement artifacts: Engram `sdd/reposition-rag-as-portfolio-platform/{proposal (#3226), spec (#3227), design (#3228), tasks (#3229)}`.
 - `define-rag-platform-architecture` — complete (documentation only; no runtime, manifests, or lockfiles). Establishes the shared technology and architecture baseline: feature-organized modular monolith with hexagonal boundaries, prototype stack (FastAPI/React/Vite, PostgreSQL/pgvector, SQLAlchemy 2/Alembic/Psycopg 3, Docling, public OpenAI), Azure migration mapping with TI gates, data ownership/lifecycle, index lifecycle concurrency/revocation, atomic query persistence, accepted public-OpenAI free-text demo risk, and dependency governance. Artifacts: `AGENTS.md` (normative contributor contract), `governance/direct-dependencies.yaml` (governance evidence template), `docs/architecture/platform-architecture.md` (detailed architecture reference). SDD artifacts: Engram `sdd/define-rag-platform-architecture/{proposal (#3161), spec (#3162), design (#3163), tasks (#3194)}`. Implementation changes must establish the test harness first, then re-evaluate Strict TDD (testing baseline #3111).
 - `bootstrap-opsknowledge-test-harness` — complete. The bootstrap chain merged to `master` at `425f7ec`; its canonical local and GitHub Actions gate passed with 111 tests.
+- The Phase 0 foundation is complete when the governed synthetic bilingual sample and its 50/50 evaluation slice are established under these controls. The next product change is `build-opsknowledge-evaluation-dataset`; optional historical references do not block it.
 
 ## Pre-Phase 1 — CI hardening
 
@@ -251,7 +243,7 @@ Answer or abstention with citations
 - Search only the matching corpus and answer in the question language.
 - Never fall back silently to the other language.
 - Ask for clarification when the language is mixed or ambiguous.
-- Use the approved glossary only for query understanding and expansion, never as answer evidence.
+- Use approved terminology only for query understanding and expansion, never as answer evidence.
 
 **Retrieval capabilities:** persistent vector storage, lexical search, hybrid retrieval, metadata filters, relevance thresholds, reranking, result diversification, and document/revision filters.
 
