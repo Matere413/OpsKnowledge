@@ -113,8 +113,13 @@ Pre-Phase 1 CI hardening
 
 **Candidate SDD changes:**
 
-- [ ] `harden-focused-test-scanner-import-aliases`
-- [ ] `refresh-github-actions-node-runtime-pins`
+- [x] `harden-focused-test-scanner-import-aliases`
+- [x] `refresh-github-actions-node-runtime-pins`
+
+**Completion notes:**
+
+- `harden-focused-test-scanner-import-aliases` — complete. Archived hybrid SDD change at `openspec/changes/archive/2026-07-19-harden-focused-test-scanner-import-aliases/`; implementation and CI delivery merged through PR #11.
+- `refresh-github-actions-node-runtime-pins` — complete. Archived hybrid SDD change at `openspec/changes/archive/2026-07-21-refresh-github-actions-node-runtime-pins/`; canonical `test-harness` spec synchronized and post-archive verification reran successfully (`uv run --frozen pytest tests/architecture/test_github_actions_workflow.py -v`, `make ci`).
 
 ## Phase 1 — Minimal grounded OpsKnowledge core
 

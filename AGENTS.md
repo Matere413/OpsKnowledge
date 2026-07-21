@@ -105,6 +105,11 @@ A new SDD change is REQUIRED before:
 
 Do not create one change named `build-complete-rag-platform`. Prefer bounded, independently reversible changes with explicit acceptance criteria.
 
+## Roadmap completion tracking
+
+- When an SDD change listed in `RAG_ROADMAP.md` is fully completed and archived, update its roadmap checkbox to completed and add or refresh concise completion evidence in the same delivery.
+- Never mark a roadmap item complete from implementation status alone. Require the archived SDD report and its successful verification evidence.
+
 ## Where to look
 
 - Product boundary, phases, and cross-phase safety invariants: `RAG_ROADMAP.md`
