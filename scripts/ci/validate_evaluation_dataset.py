@@ -836,6 +836,124 @@ def _validate_scenario(
     return findings
 
 
+def _validate_scenario_catalog(scenarios: list[dict[str, Any]], root: Path) -> list[Diagnostic]:
+    """Validate the 32-scenario count/language-split/pair/parity/balance contract."""
+    findings: list[Diagnostic] = []
+    rel = _relative(root / MANIFEST_PATH, root)
+    if len(scenarios) != REQUIRED_SCENARIO_COUNT:
+        findings.append(
+            (
+                rel,
+                "scenario-count",
+                f"set the scenario count to exactly {REQUIRED_SCENARIO_COUNT} "
+                f"(found {len(scenarios)})",
+            )
+        )
+    # Language split: exactly 16 es and 16 en.
+    es_count = sum(1 for s in scenarios if s.get("language") == "es")
+    en_count = sum(1 for s in scenarios if s.get("language") == "en")
+    if es_count != REQUIRED_LANGUAGE_SPLIT:
+        findings.append(
+            (
+                rel,
+                "scenario-language-split",
+                f"set the es scenario count to exactly {REQUIRED_LANGUAGE_SPLIT} "
+                f"(found {es_count})",
+            )
+        )
+    if en_count != REQUIRED_LANGUAGE_SPLIT:
+        findings.append(
+            (
+                rel,
+                "scenario-language-split",
+                f"set the en scenario count to exactly {REQUIRED_LANGUAGE_SPLIT} "
+                f"(found {en_count})",
+            )
+        )
+    # Pair grouping: 16 pair IDs, one es + one en per pair.
+    by_pair: dict[str, list[dict[str, Any]]] = {}
+    for s in scenarios:
+        pair_id = s.get("pair_id")
+        if isinstance(pair_id, str):
+            by_pair.setdefault(pair_id, []).append(s)
+    if len(by_pair) != REQUIRED_PAIR_COUNT:
+        findings.append(
+            (
+                rel,
+                "scenario-pair-count",
+                f"set the bilingual pair count to exactly {REQUIRED_PAIR_COUNT} "
+                f"(found {len(by_pair)})",
+            )
+        )
+    # One record per (pair_id, language); identical pair structural fields.
+    for pair_id, members in sorted(by_pair.items()):
+        if len(members) != 2:
+            findings.append(
+                (
+                    rel,
+                    "scenario-pair-shape",
+                    f"pair '{pair_id}' must contain exactly two scenarios (found {len(members)})",
+                )
+            )
+            continue
+        langs = sorted(m.get("language", "") for m in members)
+        if langs != ["en", "es"]:
+            findings.append(
+                (
+                    rel,
+                    "scenario-pair-language",
+                    f"pair '{pair_id}' must contain one es and one en scenario",
+                )
+            )
+            continue
+        es_member = next(m for m in members if m.get("language") == "es")
+        en_member = next(m for m in members if m.get("language") == "en")
+        for field in ("case_type", "expected_outcome", "safety_classification"):
+            if es_member.get(field) != en_member.get(field):
+                findings.append(
+                    (
+                        rel,
+                        "scenario-parity",
+                        f"pair '{pair_id}' {field} must match across languages "
+                        f"(es={es_member.get(field)!r}, en={en_member.get(field)!r})",
+                    )
+                )
+        # Evidence shape parity: same number of evidence references.
+        es_ev = es_member.get("evidence", [])
+        en_ev = en_member.get("evidence", [])
+        if isinstance(es_ev, list) and isinstance(en_ev, list) and len(es_ev) != len(en_ev):
+            findings.append(
+                (
+                    rel,
+                    "scenario-parity-evidence-shape",
+                    f"pair '{pair_id}' evidence shape must match "
+                    f"(es={len(es_ev)}, en={len(en_ev)})",
+                )
+            )
+    # Balance: exactly 16 grounded and 16 abstention.
+    grounded = sum(1 for s in scenarios if s.get("expected_outcome") in GROUNDED_OUTCOMES)
+    abstention = len(scenarios) - grounded
+    if grounded != REQUIRED_GROUNDED_COUNT:
+        findings.append(
+            (
+                rel,
+                "scenario-balance-grounded",
+                f"set the grounded scenario count to exactly {REQUIRED_GROUNDED_COUNT} "
+                f"(found {grounded})",
+            )
+        )
+    if abstention != REQUIRED_ABSTENTION_COUNT:
+        findings.append(
+            (
+                rel,
+                "scenario-balance-abstention",
+                f"set the abstention scenario count to exactly {REQUIRED_ABSTENTION_COUNT} "
+                f"(found {abstention})",
+            )
+        )
+    return findings
+
+
 def _validate_manifest_artifact_hashes(root: Path, manifest: dict[str, Any]) -> list[Diagnostic]:
     findings: list[Diagnostic] = []
     rel = _relative(root / MANIFEST_PATH, root)
@@ -1053,6 +1171,8 @@ def validate(root: Path) -> list[Diagnostic]:
                             entries_by_logical_id,
                         )
                     )
+        # Catalog contract: count, language split, pairs, parity, balance.
+        findings.extend(_validate_scenario_catalog(scenario_payloads, resolved))
 
     if manifest is not None:
         findings.extend(_validate_manifest_artifact_hashes(resolved, manifest))
