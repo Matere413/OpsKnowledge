@@ -67,11 +67,11 @@ The original single PR1 exceeded the 400-line review budget and reached escalate
 
 ### PR 1b — Foundation: deferred CLI/edge coverage (pending)
 
-- [ ] 1b.1 RED: `test_valid_manifest_loads_with_zero_findings` (valid baseline loads with zero findings).
-- [ ] 1b.2 RED: `test_manifest_hash_matches_canonical_bytes` (manifest self-referential hash over canonical bytes with sha256 set to empty).
-- [ ] 1b.3 RED: `test_manifest_must_be_single_document` (appended second JSON object yields `json-syntax-error`).
-- [ ] 1b.4 RED: `test_orphan_file_outside_manifest_fails_closed` (stable reason code `orphan-file-not-in-manifest`).
-- [ ] 1b.5 RED: CLI coverage — `test_cli_returns_zero_on_valid_dataset`, `test_cli_returns_two_on_bad_argv`, `test_cli_returns_one_on_findings` (subprocess exit 0/1/2, safe stderr).
+- [x] 1b.1 RED: `test_valid_manifest_loads_with_zero_findings` (valid baseline loads with zero findings).
+- [x] 1b.2 RED: `test_manifest_hash_matches_canonical_bytes` (manifest self-referential hash over canonical bytes with sha256 set to empty).
+- [x] 1b.3 RED: `test_manifest_must_be_single_document` (appended second JSON object yields `json-syntax-error`).
+- [x] 1b.4 RED: `test_orphan_file_outside_manifest_fails_closed` (stable reason code `orphan-file-not-in-manifest`).
+- [x] 1b.5 RED: CLI coverage — `test_cli_returns_zero_on_valid_dataset`, `test_cli_returns_two_on_bad_argv`, `test_cli_returns_one_on_findings` (subprocess exit 0/1/2, safe stderr).
 
 > PR1b note: no production behavior change. These tests were part of the original PR1 plan and are deferred, not deleted. They will be re-added from the escalated candidate tree `ccaec63` test file once PR1a is reviewed and integrated. PR1b targets the same `pr-1-foundation` slice after PR1a lands.
 
