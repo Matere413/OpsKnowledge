@@ -15,6 +15,7 @@ UV_RUN := python3 scripts/ci/run_uv_command.py
 ci: check-uv-version
 	@echo "=== uv version OK ==="
 	$(MAKE) sync-env
+	$(MAKE) check-evaluation-dataset
 	$(MAKE) check-focused-tests
 	$(MAKE) ruff-check
 	$(MAKE) ruff-format
@@ -80,8 +81,8 @@ pytest-check:
 	$(UV_RUN) run --frozen pytest
 	@echo "=== pytest OK ==="
 
-# PR1 foundation slice: standalone evaluation-dataset structural validator.
-# Not wired into `ci` yet; PR4 inserts it before check-focused-tests.
+# Evaluation-dataset structural validator. Wired into `ci` before
+# check-focused-tests so a malformed dataset fails the canonical gate early.
 check-evaluation-dataset:
 	$(UV_RUN) run --frozen python scripts/ci/validate_evaluation_dataset.py evaluation-dataset
 	@echo "=== evaluation-dataset validator OK ==="
