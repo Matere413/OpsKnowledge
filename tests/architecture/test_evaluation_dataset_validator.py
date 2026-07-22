@@ -17,10 +17,13 @@ or out-of-root filesystem access.
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import os
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -53,6 +56,10 @@ def _canonical_bytes(payload: object) -> bytes:
         )
         + b"\n"
     )
+
+
+def _sha256(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
 
 
 def _load_manifest(root: Path) -> dict[str, Any]:
@@ -186,3 +193,129 @@ def test_r3_001_empty_or_missing_manifest_coverage_fails_closed(
     _write_manifest(root, payload)
     findings = validator.validate(root)
     assert expected_reason in _reasons(findings), findings
+
+
+# --- PR1b: deferred CLI/edge coverage (no production behavior change) ---
+
+
+def test_valid_manifest_loads_with_zero_findings(tmp_path: Path) -> None:
+    """Baseline: a valid copy of the committed dataset loads with zero findings."""
+    validator = _load_validator()
+    root = _copy_dataset(tmp_path)
+    findings = validator.validate(root)
+    assert findings == [], findings
+
+
+def test_manifest_hash_matches_canonical_bytes(tmp_path: Path) -> None:
+    """The manifest self-referential sha256 is recomputed over canonical bytes
+    with the manifest artifact's sha256 field set to the empty string."""
+    validator = _load_validator()
+    root = _copy_dataset(tmp_path)
+    payload = _load_manifest(root)
+    manifest_artifact = next(
+        artifact for artifact in payload["artifacts"] if artifact["kind"] == "manifest"
+    )
+    manifest_artifact["sha256"] = ""
+    expected = _sha256(_canonical_bytes(payload))
+    manifest_artifact["sha256"] = expected
+    _write_manifest(root, payload)
+    findings = validator.validate(root)
+    assert findings == [], findings
+
+
+def test_manifest_must_be_single_document(tmp_path: Path) -> None:
+    """An appended second JSON object yields json-syntax-error (not silent acceptance)."""
+    validator = _load_validator()
+    root = _copy_dataset(tmp_path)
+    manifest_path = root / "manifest.json"
+    original = manifest_path.read_bytes()
+    manifest_path.write_bytes(original + b'{"second": true}\n')
+    findings = validator.validate(root)
+    assert "json-syntax-error" in _reasons(findings), findings
+
+
+def test_orphan_file_outside_manifest_fails_closed(tmp_path: Path) -> None:
+    """A JSON file under the dataset root that is not declared in the manifest
+    fails closed with the stable reason code orphan-file-not-in-manifest."""
+    validator = _load_validator()
+    root = _copy_dataset(tmp_path)
+    orphan = root / "entries" / "orphan.rev.1.json"
+    orphan.write_bytes(
+        _canonical_bytes(
+            {
+                "id": "entry.orphan.rev.1",
+                "logical_entry_id": "orphan",
+                "revision": "1",
+                "collection": "runbooks",
+                "language": "es",
+                "approval": "approved",
+                "classification": "synthetic",
+                "profile": "development",
+                "content": "orphan entry not in manifest.",
+                "content_sha256": "deadbeef",
+            }
+        )
+    )
+    findings = validator.validate(root)
+    orphan_findings = [finding for finding in findings if finding[0] == "entries/orphan.rev.1.json"]
+    assert orphan_findings, findings
+    reason = orphan_findings[0][1]
+    assert reason == "orphan-file-not-in-manifest", orphan_findings
+    remediation = orphan_findings[0][2]
+    assert remediation, "remediation hint must be non-empty"
+
+
+def test_cli_returns_zero_on_valid_dataset(tmp_path: Path) -> None:
+    """CLI subprocess exit 0 on a valid dataset copy; stderr is empty."""
+    root = _copy_dataset(tmp_path)
+    result = subprocess.run(
+        [sys.executable, str(VALIDATOR_PATH), str(root)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert result.stderr == ""
+
+
+def test_cli_returns_two_on_bad_argv() -> None:
+    """CLI subprocess exit 2 on invalid argv (too many args); safe usage to stderr."""
+    result = subprocess.run(
+        [sys.executable, str(VALIDATOR_PATH), "a", "b"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 2, (result.stdout, result.stderr)
+    assert "usage" in result.stderr, result.stderr
+
+
+def test_cli_returns_one_on_findings(tmp_path: Path) -> None:
+    """CLI subprocess exit 1 when findings exist; safe path+reason to stderr, no content."""
+    root = _copy_dataset(tmp_path)
+    orphan = root / "entries" / "orphan.rev.1.json"
+    orphan.write_bytes(
+        _canonical_bytes(
+            {
+                "id": "entry.orphan.rev.1",
+                "logical_entry_id": "orphan",
+                "revision": "1",
+                "collection": "runbooks",
+                "language": "es",
+                "approval": "approved",
+                "classification": "synthetic",
+                "profile": "development",
+                "content": "orphan.",
+                "content_sha256": "deadbeef",
+            }
+        )
+    )
+    result = subprocess.run(
+        [sys.executable, str(VALIDATOR_PATH), str(root)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 1, (result.stdout, result.stderr)
+    assert "orphan-file-not-in-manifest" in result.stderr, result.stderr
+    assert "entries/orphan.rev.1.json" in result.stderr, result.stderr
