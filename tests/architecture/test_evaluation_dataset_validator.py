@@ -319,3 +319,158 @@ def test_cli_returns_one_on_findings(tmp_path: Path) -> None:
     assert result.returncode == 1, (result.stdout, result.stderr)
     assert "orphan-file-not-in-manifest" in result.stderr, result.stderr
     assert "entries/orphan.rev.1.json" in result.stderr, result.stderr
+
+
+# --- PR2: Fragments + OCR + Sensitive (RED first, then GREEN coverage) ---
+
+
+def _write_fragment(root: Path, rel: str, payload: dict[str, Any]) -> None:
+    (root / rel).write_bytes(_canonical_bytes(payload))
+
+
+def _recompute_manifest_self_hash(root: Path, payload: dict[str, Any]) -> None:
+    manifest_artifact = next(
+        artifact for artifact in payload["artifacts"] if artifact["kind"] == "manifest"
+    )
+    manifest_artifact["sha256"] = ""
+    expected = _sha256(_canonical_bytes(payload))
+    manifest_artifact["sha256"] = expected
+    _write_manifest(root, payload)
+
+
+def _valid_fragment_payload(
+    fragment_id: str = "fragment.runbook-001.rev.1.es.original",
+    entry_id: str = "entry.runbook-001.rev.1",
+    language: str = "es",
+    provenance: str = "original",
+    source_reference: str = "",
+    quality: str = "",
+    content: str = "Fragmento synthetic RB-001 rev 1 es original.",
+    fictitious: bool | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "id": fragment_id,
+        "entry_id": entry_id,
+        "language": language,
+        "provenance": provenance,
+        "source_reference": source_reference,
+        "quality": quality,
+        "approval": "approved",
+        "classification": "synthetic",
+        "profile": "development",
+        "content": content,
+        "content_sha256": _sha256(content.encode("utf-8")),
+    }
+    if fictitious is not None:
+        payload["fictitious"] = fictitious
+    return payload
+
+
+def _mutate_fragment(root: Path, payload: dict[str, Any], case: str) -> tuple[str, dict[str, Any]]:
+    """Return (fragment_rel, mutated_payload) for a named PR2 contract violation."""
+    if case == "language-mismatch":
+        rel = "fragments/runbook-001.rev.1.es.original.json"
+        bad = _valid_fragment_payload(language="en")
+    elif case == "ocr-missing-source-quality":
+        rel = "fragments/runbook-001.rev.1.es.ocr.json"
+        bad = _valid_fragment_payload(
+            fragment_id="fragment.runbook-001.rev.1.es.ocr",
+            provenance="ocr",
+            source_reference="",
+            quality="",
+        )
+    elif case == "ocr-quality-allowlist":
+        rel = "fragments/runbook-001.rev.1.es.ocr.json"
+        bad = _valid_fragment_payload(
+            fragment_id="fragment.runbook-001.rev.1.es.ocr",
+            provenance="ocr",
+            source_reference="synthetic-ocr/runbook-001-page-3.txt",
+            quality="probably-ok",
+        )
+    elif case == "ocr-cross-language":
+        rel = "fragments/adr-002.rev.1.en.ocr.json"
+        bad = _valid_fragment_payload(
+            fragment_id="fragment.adr-002.rev.1.en.ocr",
+            entry_id="entry.adr-002.rev.1",
+            language="es",
+            provenance="ocr",
+            source_reference="synthetic-ocr/adr-002-page-1.txt",
+            quality="medium",
+        )
+    elif case == "fictitious-not-true":
+        rel = "fragments/policy-003.rev.1.es.sensitive.json"
+        bad = _valid_fragment_payload(
+            fragment_id="fragment.policy-003.rev.1.es.sensitive",
+            entry_id="entry.policy-003.rev.1",
+            fictitious=False,
+        )
+    elif case == "image-field":
+        rel = "fragments/runbook-001.rev.1.es.original.json"
+        bad = _valid_fragment_payload()
+        bad["image"] = "synthetic-ocr/runbook-001-page-3.png"
+    elif case == "parent-missing":
+        rel = "fragments/runbook-001.rev.1.es.original.json"
+        bad = _valid_fragment_payload(entry_id="entry.does-not-exist.rev.1")
+    elif case == "content-hash":
+        rel = "fragments/runbook-001.rev.1.es.original.json"
+        bad = _valid_fragment_payload()
+        bad["content_sha256"] = "deadbeef" * 8
+    elif case == "non-ocr-metadata":
+        rel = "fragments/runbook-001.rev.1.es.original.json"
+        bad = _valid_fragment_payload(
+            provenance="original",
+            source_reference="synthetic-ocr/runbook-001-page-3.txt",
+            quality="low",
+        )
+    elif case == "provenance-allowlist":
+        rel = "fragments/runbook-001.rev.1.es.original.json"
+        bad = _valid_fragment_payload(provenance="scrape")
+    else:  # pragma: no cover - exhausted by parametrize
+        raise AssertionError(f"unknown PR2 case: {case}")
+    return rel, bad
+
+
+@pytest.mark.parametrize(
+    ("case", "expected_reasons"),
+    [
+        ("language-mismatch", ["fragment-language-mismatch"]),
+        ("ocr-missing-source-quality", ["fragment-ocr-source", "fragment-ocr-quality"]),
+        ("ocr-quality-allowlist", ["fragment-ocr-quality"]),
+        ("ocr-cross-language", ["fragment-language-mismatch"]),
+        ("fictitious-not-true", ["fragment-fictitious-marker"]),
+        ("image-field", ["fragment-image-field"]),
+        ("parent-missing", ["fragment-parent-missing"]),
+        ("content-hash", ["fragment-content-hash"]),
+        (
+            "non-ocr-metadata",
+            ["fragment-source-not-ocr", "fragment-quality-not-ocr"],
+        ),
+        ("provenance-allowlist", ["fragment-provenance"]),
+    ],
+)
+def test_fragment_contract_violations_fail_closed(
+    tmp_path: Path, case: str, expected_reasons: list[str]
+) -> None:
+    """PR2 fragment contracts: each documented violation fails closed with the
+    matching stable reason code(s). Covers language match, OCR provenance +
+    source + quality allowlist, cross-language OCR, fictitious marker, image
+    field prohibition, parent resolution, content hash, non-OCR metadata, and
+    provenance allowlist."""
+    validator = _load_validator()
+    root = _copy_dataset(tmp_path)
+    payload = _load_manifest(root)
+    rel, bad = _mutate_fragment(root, payload, case)
+    _write_fragment(root, rel, bad)
+    _recompute_manifest_self_hash(root, payload)
+    findings = validator.validate(root)
+    reasons = _reasons(findings)
+    for expected in expected_reasons:
+        assert expected in reasons, (case, expected, findings)
+
+
+def test_valid_fragments_load_with_zero_findings(tmp_path: Path) -> None:
+    """Baseline: the committed dataset (entries + fragments) validates cleanly."""
+    validator = _load_validator()
+    root = _copy_dataset(tmp_path)
+    findings = validator.validate(root)
+    assert findings == [], findings

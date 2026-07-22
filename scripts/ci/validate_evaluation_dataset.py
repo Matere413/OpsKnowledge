@@ -33,6 +33,23 @@ ALLOWED_PROVENANCE = frozenset({"original", "ocr"})
 ALLOWED_APPROVALS = frozenset({"approved"})
 ALLOWED_CLASSIFICATIONS = frozenset({"synthetic"})
 ALLOWED_PROFILES = frozenset({"development"})
+# OCR fragments must declare a non-empty source reference and a quality indicator.
+# Quality is a controlled vocabulary so consumers can distinguish OCR confidence
+# without interpreting free-form text.
+ALLOWED_OCR_QUALITY = frozenset({"low", "medium", "high"})
+# Sensitive-identifier allowlist: fragments that carry identifiers MUST mark
+# `fictitious: true` and use obviously non-corporate patterns. A fragment is
+# considered to carry sensitive identifiers when it declares `fictitious: true`
+# OR its content/source mentions one of the reserved patterns. The validator
+# rejects a `fictitious` marker that is not strictly true, and rejects content
+# that looks like a sensitive identifier without the marker.
+SENSITIVE_FICTITIOUS_VALUES = frozenset({True})
+SENSITIVE_PATTERNS = ("example.test", "TEST-", "INVALID")
+# No entry, fragment, or scenario may reference image content. The dataset is
+# text-only; OCR cases carry extracted text plus provenance, never images.
+PROHIBITED_IMAGE_FIELDS = frozenset(
+    {"image", "images", "screenshot", "photograph", "photo", "picture", "visual"}
+)
 
 ARTIFACT_KINDS = frozenset({"manifest", "entry", "fragment", "scenario"})
 MANIFEST_PATH = "manifest.json"
@@ -393,6 +410,149 @@ def _validate_entry(
     return findings
 
 
+def _validate_fragment(
+    path: Path,
+    root: Path,
+    payload: Any,
+    manifest_entry: dict[str, Any] | None,
+    entries_by_id: dict[str, dict[str, Any]],
+) -> list[Diagnostic]:
+    rel = _relative(path, root)
+    findings: list[Diagnostic] = []
+    if not isinstance(payload, dict):
+        return [(rel, "fragment-shape", "fragment must be a JSON object")]
+    # Prohibited image fields: the dataset is text-only.
+    for field in PROHIBITED_IMAGE_FIELDS:
+        if field in payload:
+            findings.append(
+                (
+                    rel,
+                    "fragment-image-field",
+                    f"remove the '{field}' field; OCR text only, no images",
+                )
+            )
+    for key in (
+        "id",
+        "entry_id",
+        "language",
+        "provenance",
+        "source_reference",
+        "quality",
+        "approval",
+        "classification",
+        "profile",
+        "content",
+        "content_sha256",
+    ):
+        if key not in payload:
+            findings.append(
+                (rel, "fragment-missing-field", f"add required field '{key}' to fragment")
+            )
+    language = payload.get("language")
+    if language not in ALLOWED_LANGUAGES:
+        findings.append(
+            (rel, "fragment-language", f"set language to one of {sorted(ALLOWED_LANGUAGES)}")
+        )
+    provenance = payload.get("provenance")
+    if provenance not in ALLOWED_PROVENANCE:
+        findings.append(
+            (rel, "fragment-provenance", f"set provenance to one of {sorted(ALLOWED_PROVENANCE)}")
+        )
+    if payload.get("approval") not in ALLOWED_APPROVALS:
+        findings.append(
+            (rel, "fragment-approval", f"set approval to one of {sorted(ALLOWED_APPROVALS)}")
+        )
+    if payload.get("classification") not in ALLOWED_CLASSIFICATIONS:
+        findings.append(
+            (
+                rel,
+                "fragment-classification",
+                f"set classification to one of {sorted(ALLOWED_CLASSIFICATIONS)}",
+            )
+        )
+    if payload.get("profile") not in ALLOWED_PROFILES:
+        findings.append(
+            (rel, "fragment-profile", f"set profile to one of {sorted(ALLOWED_PROFILES)}")
+        )
+    # OCR provenance requires a non-empty source reference and a quality indicator.
+    source_reference = payload.get("source_reference")
+    quality = payload.get("quality")
+    if provenance == "ocr":
+        if not isinstance(source_reference, str) or not source_reference:
+            findings.append(
+                (
+                    rel,
+                    "fragment-ocr-source",
+                    "set a non-empty synthetic 'source_reference' for OCR fragments",
+                )
+            )
+        if quality not in ALLOWED_OCR_QUALITY:
+            findings.append(
+                (
+                    rel,
+                    "fragment-ocr-quality",
+                    f"set 'quality' to one of {sorted(ALLOWED_OCR_QUALITY)} for OCR fragments",
+                )
+            )
+    else:
+        # Non-OCR fragments do not carry OCR metadata; an explicit non-empty
+        # source_reference or quality on a non-OCR fragment is a shape error.
+        if isinstance(source_reference, str) and source_reference:
+            findings.append(
+                (rel, "fragment-source-not-ocr", "clear 'source_reference' for non-OCR fragments")
+            )
+        if isinstance(quality, str) and quality:
+            findings.append(
+                (rel, "fragment-quality-not-ocr", "clear 'quality' for non-OCR fragments")
+            )
+    content = payload.get("content")
+    if not isinstance(content, str) or not content:
+        findings.append((rel, "fragment-content", "set 'content' to a non-empty string"))
+    else:
+        declared_hash = payload.get("content_sha256")
+        actual_hash = _sha256(content.encode("utf-8"))
+        if declared_hash != actual_hash:
+            findings.append(
+                (
+                    rel,
+                    "fragment-content-hash",
+                    "recompute content_sha256 over the fragment 'content' bytes",
+                )
+            )
+    # Sensitive-identifier marker: if present, must be strictly true.
+    if "fictitious" in payload and payload.get("fictitious") not in SENSITIVE_FICTITIOUS_VALUES:
+        findings.append(
+            (rel, "fragment-fictitious-marker", "set 'fictitious' to true or remove the marker")
+        )
+    # Parent entry resolution and language match.
+    entry_id = payload.get("entry_id")
+    if not isinstance(entry_id, str) or not entry_id:
+        findings.append((rel, "fragment-entry-id", "set 'entry_id' to a declared entry id"))
+    else:
+        parent = entries_by_id.get(entry_id)
+        if parent is None:
+            findings.append(
+                (rel, "fragment-parent-missing", f"reference a declared entry id '{entry_id}'")
+            )
+        else:
+            parent_language = parent.get("language")
+            if parent_language in ALLOWED_LANGUAGES and language != parent_language:
+                findings.append(
+                    (
+                        rel,
+                        "fragment-language-mismatch",
+                        f"set fragment language to parent entry language '{parent_language}'",
+                    )
+                )
+            if parent.get("approval") not in ALLOWED_APPROVALS:
+                findings.append(
+                    (rel, "fragment-parent-not-approved", "reference an approved parent entry")
+                )
+    if manifest_entry is not None and manifest_entry.get("id") != payload.get("id"):
+        findings.append((rel, "fragment-id-mismatch", "align manifest 'id' with the fragment 'id'"))
+    return findings
+
+
 def _validate_manifest_artifact_hashes(root: Path, manifest: dict[str, Any]) -> list[Diagnostic]:
     findings: list[Diagnostic] = []
     rel = _relative(root / MANIFEST_PATH, root)
@@ -526,13 +686,17 @@ def validate(root: Path) -> list[Diagnostic]:
                     )
                 )
 
-    # Per-entry structural checks. Fragments and scenarios are validated in later slices.
+    # Per-entry and per-fragment structural checks. Scenarios are validated in
+    # a later slice. Entries are loaded first so fragments can resolve parent
+    # references and language against a complete entry index.
     if manifest is not None and isinstance(manifest.get("artifacts"), list):
         index_by_path: dict[str, dict[str, Any]] = {
             artifact["path"]: artifact
             for artifact in manifest["artifacts"]
             if isinstance(artifact, dict) and isinstance(artifact.get("path"), str)
         }
+        entries_by_id: dict[str, dict[str, Any]] = {}
+        entry_payloads: dict[str, Any] = {}
         for path in files:
             rel = _relative(path, resolved)
             if rel == MANIFEST_PATH:
@@ -542,8 +706,25 @@ def validate(root: Path) -> list[Diagnostic]:
             if kind == "entry":
                 payload, entry_read_findings = _safe_read_json(path, resolved)
                 findings.extend(entry_read_findings)
-                if payload is not None:
+                if payload is not None and isinstance(payload, dict):
+                    entry_payloads[rel] = payload
+                    entry_id = payload.get("id")
+                    if isinstance(entry_id, str):
+                        entries_by_id[entry_id] = payload
                     findings.extend(_validate_entry(path, resolved, payload, artifact_meta))
+        for path in files:
+            rel = _relative(path, resolved)
+            if rel == MANIFEST_PATH:
+                continue
+            artifact_meta = index_by_path.get(rel)
+            kind = artifact_meta.get("kind") if artifact_meta else None
+            if kind == "fragment":
+                payload, fragment_read_findings = _safe_read_json(path, resolved)
+                findings.extend(fragment_read_findings)
+                if payload is not None:
+                    findings.extend(
+                        _validate_fragment(path, resolved, payload, artifact_meta, entries_by_id)
+                    )
 
     if manifest is not None:
         findings.extend(_validate_manifest_artifact_hashes(resolved, manifest))
