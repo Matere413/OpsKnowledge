@@ -77,10 +77,10 @@ The original single PR1 exceeded the 400-line review budget and reached escalate
 
 ## Phase 2: Fragments + OCR + Sensitive (PR 2)
 
-- [ ] 2.1 RED: fragment lang == parent lang; `fictitious: true` allowlist (`example.test`/`TEST-`/`INVALID`); OCR `provenance: "ocr"` + `source_reference` + `quality` required; cross-language OCR fails closed.
-- [ ] 2.2 GREEN: add `evaluation-dataset/fragments/<fragment-id>.json` per entry (lang-matched, parent ref, provenance, source, quality, `content_sha256`). No image/screenshot/photograph/visual field.
-- [ ] 2.3 GREEN: validator adds fragment/parent lang match, provenance allowlist, sensitive-id allowlist, no-image-fields allowlist.
-- [ ] 2.4 GREEN: extend `manifest.json` `artifacts[]` with each fragment path+`sha256`; validator re-runs clean.
+- [x] 2.1 RED: fragment lang == parent lang; `fictitious: true` allowlist (`example.test`/`TEST-`/`INVALID`); OCR `provenance: "ocr"` + `source_reference` + `quality` required; cross-language OCR fails closed.
+- [x] 2.2 GREEN: add `evaluation-dataset/fragments/<fragment-id>.json` per entry (lang-matched, parent ref, provenance, source, quality, `content_sha256`). No image/screenshot/photograph/visual field.
+- [x] 2.3 GREEN: validator adds fragment/parent lang match, provenance allowlist, sensitive-id allowlist, no-image-fields allowlist.
+- [x] 2.4 GREEN: extend `manifest.json` `artifacts[]` with each fragment path+`sha256`; validator re-runs clean.
 
 ## Phase 3: Scenarios + Parity + Balance (PR 3)
 
