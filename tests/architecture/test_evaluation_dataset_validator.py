@@ -486,5 +486,3 @@ def test_valid_scenarios_load_with_zero_findings(tmp_path: Path) -> None:
     root = _copy_dataset(tmp_path)
     findings = validator.validate(root)
     assert findings == [], findings
-
-
