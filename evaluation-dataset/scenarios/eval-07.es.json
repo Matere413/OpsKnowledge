@@ -1,0 +1,1 @@
+{"abstention_reason":"none","approval":"approved","case_type":"OCR-uncertainty","claim_expectation":"claim-ocr-grounded-07","classification":"synthetic","evidence":["fragment.runbook-001.rev.1.es.ocr"],"expected_outcome":"supported","id":"scenario.eval-07.es","language":"es","pair_id":"eval-07","profile":"development","safety_classification":"safe"}
