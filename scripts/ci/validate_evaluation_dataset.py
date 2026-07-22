@@ -1107,12 +1107,13 @@ def validate(root: Path) -> list[Diagnostic]:
             if kind == "entry":
                 payload, entry_read_findings = _safe_read_json(path, resolved)
                 findings.extend(entry_read_findings)
-                if payload is not None and isinstance(payload, dict):
-                    entry_payloads[rel] = payload
-                    entry_id = payload.get("id")
-                    if isinstance(entry_id, str):
-                        entries_by_id[entry_id] = payload
+                if payload is not None:
                     findings.extend(_validate_entry(path, resolved, payload, artifact_meta))
+                    if isinstance(payload, dict):
+                        entry_payloads[rel] = payload
+                        entry_id = payload.get("id")
+                        if isinstance(entry_id, str):
+                            entries_by_id[entry_id] = payload
         for path in files:
             rel = _relative(path, resolved)
             if rel == MANIFEST_PATH:
@@ -1159,8 +1160,7 @@ def validate(root: Path) -> list[Diagnostic]:
             if kind == "scenario":
                 payload, scenario_read_findings = _safe_read_json(path, resolved)
                 findings.extend(scenario_read_findings)
-                if payload is not None and isinstance(payload, dict):
-                    scenario_payloads.append(payload)
+                if payload is not None:
                     findings.extend(
                         _validate_scenario(
                             path,
@@ -1171,6 +1171,8 @@ def validate(root: Path) -> list[Diagnostic]:
                             entries_by_logical_id,
                         )
                     )
+                    if isinstance(payload, dict):
+                        scenario_payloads.append(payload)
         # Catalog contract: count, language split, pairs, parity, balance.
         findings.extend(_validate_scenario_catalog(scenario_payloads, resolved))
 

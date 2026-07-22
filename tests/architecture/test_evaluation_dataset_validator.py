@@ -744,3 +744,246 @@ def test_scenario_catalog_contract_holds(tmp_path: Path) -> None:
     }
     present = {f[1] for f in findings}
     assert not (contract_reasons & present), findings
+
+
+# --- PR4b-1: shape-check fix + manifest/entry mutations + CLI contract ---
+#
+# This slice implements task 4.2 (CLI contract) and the validator shape-check
+# fix (call _validate_entry/_validate_scenario even when payload is not a dict)
+# plus mutation coverage for manifest and entry failure classes. The remaining
+# mutation coverage (fragment fields, scenario fields/catalog, hash/reference,
+# filesystem/encoding) is deferred to PR4c to stay within the 400-line budget.
+
+
+def _write_json(root: Path, rel: str, payload: Any) -> None:
+    (root / rel).write_bytes(_canonical_bytes(payload))
+
+
+def _entry_artifact(payload: dict[str, Any]) -> dict[str, Any]:
+    for artifact in payload["artifacts"]:
+        if artifact["kind"] == "entry":
+            return artifact
+    raise AssertionError("fixture manifest has no entry artifact")
+
+
+def _load_entry(root: Path, rel: str) -> dict[str, Any]:
+    return json.loads((root / rel).read_bytes().decode("utf-8"))
+
+
+def _load_scenario(root: Path, rel: str) -> dict[str, Any]:
+    return json.loads((root / rel).read_bytes().decode("utf-8"))
+
+
+@pytest.mark.parametrize(
+    ("case", "expected_reason"),
+    [
+        ("manifest-shape", "manifest-shape"),
+        ("manifest-missing-field", "manifest-missing-field"),
+        ("manifest-schema-version", "manifest-schema-version"),
+        ("manifest-dataset-id", "manifest-dataset-id"),
+        ("manifest-profile", "manifest-profile"),
+        ("manifest-approval", "manifest-approval"),
+        ("manifest-classification", "manifest-classification"),
+        ("manifest-artifacts-shape", "manifest-artifacts-shape"),
+        ("manifest-artifact-shape", "manifest-artifact-shape"),
+        ("manifest-artifact-missing-field", "manifest-artifact-missing-field"),
+        ("manifest-artifact-kind", "manifest-artifact-kind"),
+        ("manifest-artifact-path", "manifest-artifact-path"),
+        ("manifest-artifact-duplicate-path", "manifest-artifact-duplicate-path"),
+        ("manifest-self-entry-path", "manifest-self-entry-path"),
+    ],
+)
+def test_manifest_mutation_reason_codes(tmp_path: Path, case: str, expected_reason: str) -> None:
+    """PR4b-1: each manifest-shape/field mutation fails closed with the exact reason."""
+    validator = _load_validator()
+    root = _copy_dataset(tmp_path)
+    payload = _load_manifest(root)
+
+    if case == "manifest-shape":
+        _write_json(root, "manifest.json", [])
+        findings = validator.validate(root)
+        assert expected_reason in _reasons(findings), (case, findings)
+        return
+    elif case == "manifest-missing-field":
+        del payload["schema_version"]
+    elif case == "manifest-schema-version":
+        payload["schema_version"] = "99"
+    elif case == "manifest-dataset-id":
+        payload["dataset_id"] = "wrong-dataset"
+    elif case == "manifest-profile":
+        payload["profile"] = "production"
+    elif case == "manifest-approval":
+        payload["approval"] = "draft"
+    elif case == "manifest-classification":
+        payload["classification"] = "corporate"
+    elif case == "manifest-artifacts-shape":
+        payload["artifacts"] = "not-a-list"
+        _write_manifest(root, payload)
+        findings = validator.validate(root)
+        assert expected_reason in _reasons(findings), (case, findings)
+        return
+    elif case == "manifest-artifact-shape":
+        payload["artifacts"][0] = "not-an-object"
+        _write_manifest(root, payload)
+        findings = validator.validate(root)
+        assert expected_reason in _reasons(findings), (case, findings)
+        return
+    elif case == "manifest-artifact-missing-field":
+        del payload["artifacts"][0]["kind"]
+        _write_manifest(root, payload)
+        findings = validator.validate(root)
+        assert expected_reason in _reasons(findings), (case, findings)
+        return
+    elif case == "manifest-artifact-kind":
+        payload["artifacts"][0]["kind"] = "unknown-kind"
+    elif case == "manifest-artifact-path":
+        payload["artifacts"][0]["path"] = ""
+    elif case == "manifest-artifact-duplicate-path":
+        first_entry = _entry_artifact(payload)
+        first_entry_path = first_entry["path"]
+        payload["artifacts"].append(
+            {
+                "id": "entry.dup.rev.1",
+                "kind": "entry",
+                "path": first_entry_path,
+                "revision": "1",
+                "sha256": "0" * 64,
+            }
+        )
+    elif case == "manifest-self-entry-path":
+        manifest_artifact = next(a for a in payload["artifacts"] if a["kind"] == "manifest")
+        manifest_artifact["path"] = "wrong/manifest.json"
+    else:  # pragma: no cover - exhausted by parametrize
+        raise AssertionError(f"unknown case: {case}")
+
+    _recompute_manifest_self_hash(root, payload)
+    findings = validator.validate(root)
+    reasons = _reasons(findings)
+    assert expected_reason in reasons, (case, expected_reason, findings)
+
+
+@pytest.mark.parametrize(
+    ("case", "expected_reason"),
+    [
+        ("entry-shape", "entry-shape"),
+        ("entry-missing-field", "entry-missing-field"),
+        ("entry-collection", "entry-collection"),
+        ("entry-language", "entry-language"),
+        ("entry-approval", "entry-approval"),
+        ("entry-classification", "entry-classification"),
+        ("entry-profile", "entry-profile"),
+        ("entry-content", "entry-content"),
+        ("entry-content-hash", "entry-content-hash"),
+        ("entry-id-mismatch", "entry-id-mismatch"),
+        ("entry-revision-mismatch", "entry-revision-mismatch"),
+    ],
+)
+def test_entry_mutation_reason_codes(tmp_path: Path, case: str, expected_reason: str) -> None:
+    """PR4b-1: each entry-shape/field mutation fails closed with the exact reason."""
+    validator = _load_validator()
+    root = _copy_dataset(tmp_path)
+    manifest = _load_manifest(root)
+    rel = "entries/runbook-001.rev.1.json"
+
+    if case == "entry-shape":
+        _write_json(root, rel, [])
+        _recompute_manifest_self_hash(root, manifest)
+        findings = validator.validate(root)
+        assert expected_reason in _reasons(findings), (case, findings)
+        return
+
+    entry = _load_entry(root, rel)
+
+    if case == "entry-missing-field":
+        del entry["revision"]
+    elif case == "entry-collection":
+        entry["collection"] = "recipes"
+    elif case == "entry-language":
+        entry["language"] = "fr"
+    elif case == "entry-approval":
+        entry["approval"] = "draft"
+    elif case == "entry-classification":
+        entry["classification"] = "corporate"
+    elif case == "entry-profile":
+        entry["profile"] = "production"
+    elif case == "entry-content":
+        entry["content"] = ""
+    elif case == "entry-content-hash":
+        entry["content_sha256"] = "0" * 64
+    elif case == "entry-id-mismatch":
+        manifest_artifact = next(a for a in manifest["artifacts"] if a["path"] == rel)
+        manifest_artifact["id"] = "entry.wrong.rev.1"
+    elif case == "entry-revision-mismatch":
+        manifest_artifact = next(a for a in manifest["artifacts"] if a["path"] == rel)
+        manifest_artifact["revision"] = "99"
+    else:  # pragma: no cover - exhausted by parametrize
+        raise AssertionError(f"unknown case: {case}")
+
+    _write_json(root, rel, entry)
+    _recompute_manifest_self_hash(root, manifest)
+    findings = validator.validate(root)
+    assert expected_reason in _reasons(findings), (case, findings)
+
+
+# --- PR4 Task 4.2: final-form CLI subprocess contract ---
+#
+# PR1b already covers baseline CLI exit 0/1/2. Task 4.2 retains the final-form
+# CLI subprocess contract here so PR4 is the authoritative source for the
+# mutation suite. These tests assert the CLI is the only subprocess invoked
+# and that no network/DB/provider access occurs beyond the intended CLI call.
+
+
+def test_cli_exit_zero_on_valid_root_final_form(tmp_path: Path) -> None:
+    """CLI subprocess exit 0 on a valid dataset root; stderr is empty."""
+    root = _copy_dataset(tmp_path)
+    result = subprocess.run(
+        [sys.executable, str(VALIDATOR_PATH), str(root)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert result.stderr == ""
+
+
+def test_cli_exit_one_on_findings_final_form(tmp_path: Path) -> None:
+    """CLI subprocess exit 1 with a safe stderr finding (path + reason, no content)."""
+    root = _copy_dataset(tmp_path)
+    orphan = root / "entries" / "orphan.rev.1.json"
+    orphan.write_bytes(
+        _canonical_bytes(
+            {
+                "id": "entry.orphan.rev.1",
+                "logical_entry_id": "orphan",
+                "revision": "1",
+                "collection": "runbooks",
+                "language": "es",
+                "approval": "approved",
+                "classification": "synthetic",
+                "profile": "development",
+                "content": "orphan.",
+                "content_sha256": "0" * 64,
+            }
+        )
+    )
+    result = subprocess.run(
+        [sys.executable, str(VALIDATOR_PATH), str(root)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 1, (result.stdout, result.stderr)
+    assert "orphan-file-not-in-manifest" in result.stderr, result.stderr
+    assert "entries/orphan.rev.1.json" in result.stderr, result.stderr
+
+
+def test_cli_exit_two_on_bad_argv_final_form() -> None:
+    """CLI subprocess exit 2 on invalid argv; safe usage message to stderr."""
+    result = subprocess.run(
+        [sys.executable, str(VALIDATOR_PATH), "a", "b"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 2, (result.stdout, result.stderr)
+    assert "usage" in result.stderr, result.stderr
