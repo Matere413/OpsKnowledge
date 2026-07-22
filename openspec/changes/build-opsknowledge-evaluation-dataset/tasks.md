@@ -98,9 +98,13 @@ The original single PR1 exceeded the 400-line review budget and reached escalate
 > PR4 split note: the full Phase 4 slice (CI wiring + ordering test + validator shape-check fix + mutation coverage) is ~580 authored lines, exceeding the 400-line budget. Split into two bounded child slices under `feature-branch-chain`:
 > - **PR4a** (CI wiring, current slice): tasks 4.3 (Makefile `ci` wiring) + 4.4 (Makefile-ordering contract test). Base = tracker `feat/build-opsknowledge-evaluation-dataset`; targets tracker. ~190 authored lines.
 > - **PR4b** (Mutation coverage, next slice): tasks 4.1 (mutation coverage for every documented failure class) + 4.2 (CLI test retention) + validator shape-check fix (call `_validate_entry`/`_validate_scenario` even when payload is not a dict so `entry-shape`/`scenario-shape` fire). Base = PR4a branch; targets PR4a branch. ~400 authored lines.
+>
+> PR4b split note: the full PR4b scope (shape-check fix + manifest/entry mutations + fragment/scenario field/catalog mutations + hash/reference mutations + filesystem/encoding mutations + CLI contract) is ~625 authored lines, exceeding the 400-line budget. Split into two bounded child slices under `feature-branch-chain`:
+> - **PR4b-1** (shape-check fix + manifest/entry mutations + CLI contract, current slice): validator shape-check fix + task 4.2 (CLI contract) + manifest and entry mutation coverage. 259 authored lines. Base = tracker `feat/build-opsknowledge-evaluation-dataset`.
+> - **PR4c** (remaining mutation coverage, next slice): fragment field mutations, scenario field/catalog mutations, hash/reference mutations, filesystem/encoding mutations. ~366 authored lines. Base = PR4b-1 branch.
 
-- [ ] 4.1 Mutation coverage in `tests/architecture/test_evaluation_dataset_validator.py` for every documented failure class — exact stable reason code, no substring. Tests copy valid dataset to `tmp_path`; do NOT duplicate corpus.
-- [ ] 4.2 CLI test: subprocess returns 0 on valid root, 1 with safe stderr finding, 2 on bad argv; no network/subprocess/DB/provider calls.
+- [ ] 4.1 Mutation coverage in `tests/architecture/test_evaluation_dataset_validator.py` for every documented failure class — exact stable reason code, no substring. Tests copy valid dataset to `tmp_path`; do NOT duplicate corpus. (PR4b-1: manifest + entry mutations done; PR4c: fragment/scenario field/catalog + hash/reference + filesystem/encoding mutations pending)
+- [x] 4.2 CLI test: subprocess returns 0 on valid root, 1 with safe stderr finding, 2 on bad argv; no network/subprocess/DB/provider calls. (PR4b-1: final-form CLI contract tests added)
 - [x] 4.3 Makefile: add `check-evaluation-dataset` calling `$(UV_RUN) run --frozen python scripts/ci/validate_evaluation_dataset.py evaluation-dataset`; wire into `ci` before `check-focused-tests` and `pytest-check`; update `.PHONY`. Keep `ci-pr2a` unchanged.
 - [x] 4.4 Makefile-ordering contract test (mirrors `test_focused_test_scanner.py` style).
 
