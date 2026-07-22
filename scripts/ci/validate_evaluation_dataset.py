@@ -56,6 +56,71 @@ MANIFEST_PATH = "manifest.json"
 MAX_FILES = 10_000
 MAX_FILE_BYTES = 1024 * 1024
 
+# Scenario contracts. The six-state outcome taxonomy is canonical per the
+# OpsKnowledge domain contract; no seventh outcome is permitted.
+ALLOWED_OUTCOMES = frozenset(
+    {
+        "supported",
+        "insufficient_information",
+        "contradictory_information",
+        "out_of_scope",
+        "unavailable",
+        "session_expired",
+    }
+)
+# Grounded outcomes count toward the 16 supported scenarios; every other
+# outcome counts toward the 16 abstention/safety scenarios.
+GROUNDED_OUTCOMES = frozenset({"supported"})
+# Case types covered by the scenario catalog. The validator allowlists these
+# so an unknown case type fails closed rather than silently certifying novelty.
+ALLOWED_CASE_TYPES = frozenset(
+    {
+        "grounded",
+        "ambiguous-incomplete",
+        "contradictory",
+        "out-of-scope",
+        "unanswerable",
+        "prompt-override",
+        "OCR-uncertainty",
+        "sensitive-identifier",
+    }
+)
+# Safety classifications. "safe" is the default; "sensitive" marks a sensitive
+# screening case; "override" marks a prompt-override case.
+ALLOWED_SAFETY = frozenset({"safe", "sensitive", "override"})
+# Abstention reason codes are controlled so consumers can distinguish cases
+# without reading content. "none" is the allowed value for supported scenarios.
+ALLOWED_ABSTENTION_REASONS = frozenset(
+    {
+        "none",
+        "insufficient-evidence",
+        "contradiction-detected",
+        "out-of-scope",
+        "provider-unavailable",
+        "prompt-override-blocked",
+        "sensitive-blocked",
+    }
+)
+# Unanswerable case outcomes must be one of these abstention states.
+UNANSWERABLE_OUTCOMES = frozenset({"insufficient_information", "out_of_scope", "unavailable"})
+# Case types that MUST declare an empty evidence set.
+EMPTY_EVIDENCE_CASE_TYPES = frozenset(
+    {"out-of-scope", "prompt-override", "unanswerable", "sensitive-identifier"}
+)
+# Prohibited scenario field names: any field that could carry answer-like prose
+# or query text fails closed. The dataset defines outcome, evidence references,
+# claim expectation IDs, and abstention reason codes only.
+PROHIBITED_SCENARIO_FIELDS = frozenset(
+    {"answer", "gold_answer", "response", "completion", "query", "question", "text"}
+)
+# Required scenario catalog contract: exactly 32 scenarios, 16 es / 16 en,
+# 16 bilingual pairs, 16 supported / 16 abstention.
+REQUIRED_SCENARIO_COUNT = 32
+REQUIRED_LANGUAGE_SPLIT = 16
+REQUIRED_GROUNDED_COUNT = 16
+REQUIRED_ABSTENTION_COUNT = 16
+REQUIRED_PAIR_COUNT = 16
+
 
 def _relative(path: Path, root: Path) -> str:
     try:
@@ -553,6 +618,224 @@ def _validate_fragment(
     return findings
 
 
+def _validate_scenario(
+    path: Path,
+    root: Path,
+    payload: Any,
+    manifest_entry: dict[str, Any] | None,
+    fragments_by_id: dict[str, dict[str, Any]],
+    entries_by_logical_id: dict[str, list[dict[str, Any]]],
+) -> list[Diagnostic]:
+    rel = _relative(path, root)
+    findings: list[Diagnostic] = []
+    if not isinstance(payload, dict):
+        return [(rel, "scenario-shape", "scenario must be a JSON object")]
+    # Prohibited fields: no answer-like or query text may appear on a scenario.
+    for field in PROHIBITED_SCENARIO_FIELDS:
+        if field in payload:
+            findings.append(
+                (
+                    rel,
+                    "scenario-prohibited-field",
+                    f"remove the '{field}' field; scenarios carry no answer or query text",
+                )
+            )
+    for key in (
+        "id",
+        "pair_id",
+        "language",
+        "case_type",
+        "expected_outcome",
+        "safety_classification",
+        "claim_expectation",
+        "abstention_reason",
+        "evidence",
+        "approval",
+        "classification",
+        "profile",
+    ):
+        if key not in payload:
+            findings.append(
+                (rel, "scenario-missing-field", f"add required field '{key}' to scenario")
+            )
+    if payload.get("approval") not in ALLOWED_APPROVALS:
+        findings.append(
+            (rel, "scenario-approval", f"set approval to one of {sorted(ALLOWED_APPROVALS)}")
+        )
+    if payload.get("classification") not in ALLOWED_CLASSIFICATIONS:
+        findings.append(
+            (
+                rel,
+                "scenario-classification",
+                f"set classification to one of {sorted(ALLOWED_CLASSIFICATIONS)}",
+            )
+        )
+    if payload.get("profile") not in ALLOWED_PROFILES:
+        findings.append(
+            (rel, "scenario-profile", f"set profile to one of {sorted(ALLOWED_PROFILES)}")
+        )
+    language = payload.get("language")
+    if language not in ALLOWED_LANGUAGES:
+        findings.append(
+            (rel, "scenario-language", f"set language to one of {sorted(ALLOWED_LANGUAGES)}")
+        )
+    case_type = payload.get("case_type")
+    if case_type not in ALLOWED_CASE_TYPES:
+        findings.append(
+            (
+                rel,
+                "scenario-case-type",
+                f"set case_type to one of {sorted(ALLOWED_CASE_TYPES)}",
+            )
+        )
+    outcome = payload.get("expected_outcome")
+    if outcome not in ALLOWED_OUTCOMES:
+        findings.append(
+            (
+                rel,
+                "scenario-outcome",
+                f"set expected_outcome to one of {sorted(ALLOWED_OUTCOMES)}",
+            )
+        )
+    safety = payload.get("safety_classification")
+    if safety not in ALLOWED_SAFETY:
+        findings.append(
+            (
+                rel,
+                "scenario-safety",
+                f"set safety_classification to one of {sorted(ALLOWED_SAFETY)}",
+            )
+        )
+    reason = payload.get("abstention_reason")
+    if reason not in ALLOWED_ABSTENTION_REASONS:
+        findings.append(
+            (
+                rel,
+                "scenario-abstention-reason",
+                f"set abstention_reason to one of {sorted(ALLOWED_ABSTENTION_REASONS)}",
+            )
+        )
+    claim = payload.get("claim_expectation")
+    if not isinstance(claim, str) or not claim:
+        findings.append(
+            (rel, "scenario-claim-expectation", "set 'claim_expectation' to a non-empty claim ID")
+        )
+    evidence = payload.get("evidence")
+    if not isinstance(evidence, list):
+        findings.append(
+            (rel, "scenario-evidence-shape", "set 'evidence' to a list of fragment IDs")
+        )
+        evidence = []
+    # Evidence language isolation: every referenced fragment must exist and
+    # match the scenario language; mixed-language evidence fails closed.
+    resolved_fragments: list[dict[str, Any]] = []
+    for ref in evidence:
+        if not isinstance(ref, str) or not ref:
+            findings.append(
+                (rel, "scenario-evidence-ref", "reference a declared fragment id in 'evidence'")
+            )
+            continue
+        fragment = fragments_by_id.get(ref)
+        if fragment is None:
+            findings.append(
+                (rel, "scenario-evidence-missing", f"reference a declared fragment id '{ref}'")
+            )
+            continue
+        resolved_fragments.append(fragment)
+        frag_lang = fragment.get("language")
+        if (
+            frag_lang in ALLOWED_LANGUAGES
+            and language in ALLOWED_LANGUAGES
+            and frag_lang != language
+        ):
+            findings.append(
+                (
+                    rel,
+                    "scenario-evidence-language-mismatch",
+                    f"reference only {language} fragments in the evidence set",
+                )
+            )
+    # Supported scenarios MUST declare at least one approved language-matched
+    # fragment whose parent entry is approved.
+    if outcome in GROUNDED_OUTCOMES:
+        if not resolved_fragments:
+            findings.append(
+                (
+                    rel,
+                    "scenario-supported-no-evidence",
+                    "a supported scenario must reference at least one approved "
+                    "language-matched fragment",
+                )
+            )
+        else:
+            for fragment in resolved_fragments:
+                if fragment.get("approval") not in ALLOWED_APPROVALS:
+                    findings.append(
+                        (
+                            rel,
+                            "scenario-evidence-not-approved",
+                            "reference only approved fragments in a supported scenario",
+                        )
+                    )
+    # Empty-evidence case types: out-of-scope, prompt-override, unanswerable,
+    # and sensitive-identifier MUST NOT carry resolvable evidence.
+    if case_type in EMPTY_EVIDENCE_CASE_TYPES and evidence:
+        findings.append(
+            (
+                rel,
+                "scenario-empty-evidence-required",
+                f"a {case_type} scenario must declare an empty evidence set",
+            )
+        )
+    # Unanswerable case outcomes must abstain (never supported).
+    if case_type == "unanswerable" and outcome not in UNANSWERABLE_OUTCOMES:
+        findings.append(
+            (
+                rel,
+                "scenario-unanswerable-outcome",
+                "set expected_outcome to one of "
+                f"{sorted(UNANSWERABLE_OUTCOMES)} for unanswerable cases",
+            )
+        )
+    # Contradiction scenarios: exactly two approved revisions of the same
+    # logical entry, both language-matched and synthetic. The evidence set
+    # must contain fragments referencing two distinct revisions of one parent.
+    if case_type == "contradictory" and outcome == "contradictory_information":
+        parent_logical_ids: set[str] = set()
+        revision_pairs: dict[str, set[str]] = {}
+        for fragment in resolved_fragments:
+            entry_id = fragment.get("entry_id")
+            if not isinstance(entry_id, str):
+                continue
+            parent = None
+            for _logical_id, revs in entries_by_logical_id.items():
+                for entry in revs:
+                    if entry.get("id") == entry_id:
+                        parent = entry
+                        break
+                if parent is not None:
+                    break
+            if parent is None:
+                continue
+            parent_logical_ids.add(parent.get("logical_entry_id", ""))
+            revision_pairs.setdefault(parent.get("logical_entry_id", ""), set()).add(
+                parent.get("revision", "")
+            )
+        # Must reference exactly one logical entry with at least two revisions.
+        valid_pairs = [logical_id for logical_id, revs in revision_pairs.items() if len(revs) >= 2]
+        if len(parent_logical_ids) != 1 or len(valid_pairs) != 1:
+            findings.append(
+                (
+                    rel,
+                    "scenario-contradiction-revisions",
+                    "reference exactly two approved revisions of one logical entry",
+                )
+            )
+    if manifest_entry is not None and manifest_entry.get("id") != payload.get("id"):
+        findings.append((rel, "scenario-id-mismatch", "align manifest 'id' with the scenario 'id'"))
+    return findings
+
+
 def _validate_manifest_artifact_hashes(root: Path, manifest: dict[str, Any]) -> list[Diagnostic]:
     findings: list[Diagnostic] = []
     rel = _relative(root / MANIFEST_PATH, root)
@@ -724,6 +1007,51 @@ def validate(root: Path) -> list[Diagnostic]:
                 if payload is not None:
                     findings.extend(
                         _validate_fragment(path, resolved, payload, artifact_meta, entries_by_id)
+                    )
+        # Build a fragment index for scenario evidence resolution. Scenarios
+        # resolve evidence references against this index; an evidence ID that
+        # does not resolve to a declared fragment fails closed.
+        fragments_by_id: dict[str, dict[str, Any]] = {}
+        for path in files:
+            rel = _relative(path, resolved)
+            if rel == MANIFEST_PATH:
+                continue
+            artifact_meta = index_by_path.get(rel)
+            kind = artifact_meta.get("kind") if artifact_meta else None
+            if kind == "fragment":
+                payload, _fragment_read = _safe_read_json(path, resolved)
+                if payload is not None and isinstance(payload, dict):
+                    fragment_id = payload.get("id")
+                    if isinstance(fragment_id, str):
+                        fragments_by_id[fragment_id] = payload
+        # Index entries by logical_entry_id so contradiction scenarios can
+        # verify two approved revisions of the same logical entry.
+        entries_by_logical_id: dict[str, list[dict[str, Any]]] = {}
+        for entry_payload in entries_by_id.values():
+            logical_id = entry_payload.get("logical_entry_id")
+            if isinstance(logical_id, str):
+                entries_by_logical_id.setdefault(logical_id, []).append(entry_payload)
+        scenario_payloads: list[dict[str, Any]] = []
+        for path in files:
+            rel = _relative(path, resolved)
+            if rel == MANIFEST_PATH:
+                continue
+            artifact_meta = index_by_path.get(rel)
+            kind = artifact_meta.get("kind") if artifact_meta else None
+            if kind == "scenario":
+                payload, scenario_read_findings = _safe_read_json(path, resolved)
+                findings.extend(scenario_read_findings)
+                if payload is not None and isinstance(payload, dict):
+                    scenario_payloads.append(payload)
+                    findings.extend(
+                        _validate_scenario(
+                            path,
+                            resolved,
+                            payload,
+                            artifact_meta,
+                            fragments_by_id,
+                            entries_by_logical_id,
+                        )
                     )
 
     if manifest is not None:
