@@ -479,6 +479,242 @@ def test_valid_fragments_load_with_zero_findings(tmp_path: Path) -> None:
 # --- PR3: Scenarios + Parity + Balance (RED first, then GREEN coverage) ---
 
 
+def _valid_scenario_payload(
+    pair_id: str = "eval-01",
+    language: str = "es",
+    case_type: str = "grounded",
+    expected_outcome: str = "supported",
+    safety_classification: str = "safe",
+    claim_expectation: str = "claim-grounded-01",
+    abstention_reason: str = "none",
+    evidence: list[str] | None = None,
+    scenario_id: str | None = None,
+) -> dict[str, Any]:
+    if evidence is None:
+        evidence = ["fragment.runbook-001.rev.1.es.original"] if language == "es" else []
+    if scenario_id is None:
+        scenario_id = f"scenario.{pair_id}.{language}"
+    return {
+        "id": scenario_id,
+        "pair_id": pair_id,
+        "language": language,
+        "case_type": case_type,
+        "expected_outcome": expected_outcome,
+        "safety_classification": safety_classification,
+        "claim_expectation": claim_expectation,
+        "abstention_reason": abstention_reason,
+        "evidence": evidence,
+        "approval": "approved",
+        "classification": "synthetic",
+        "profile": "development",
+    }
+
+
+def _write_scenario(root: Path, pair_id: str, language: str, payload: dict[str, Any]) -> None:
+    (root / "scenarios" / f"{pair_id}.{language}.json").write_bytes(_canonical_bytes(payload))
+
+
+def _scenario_artifact(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": payload["id"],
+        "kind": "scenario",
+        "path": f"scenarios/{payload['pair_id']}.{payload['language']}.json",
+        "sha256": _sha256(_canonical_bytes(payload)),
+    }
+
+
+def _replace_scenario_in_manifest(
+    payload: dict[str, Any], manifest: dict[str, Any], pair_id: str, language: str
+) -> None:
+    target = f"scenarios/{pair_id}.{language}.json"
+    manifest["artifacts"] = [
+        a
+        for a in manifest["artifacts"]
+        if not (a.get("kind") == "scenario" and a.get("path") == target)
+    ]
+    manifest["artifacts"].append(_scenario_artifact(payload))
+
+
+@pytest.mark.parametrize(
+    ("case", "expected_reasons"),
+    [
+        ("count", ["scenario-count"]),
+        ("language-split", ["scenario-language-split"]),
+        ("pair-shape", ["scenario-pair-shape"]),
+        ("parity", ["scenario-parity"]),
+        ("balance-grounded", ["scenario-balance-grounded"]),
+        ("evidence-language-mismatch", ["scenario-evidence-language-mismatch"]),
+        ("supported-no-evidence", ["scenario-supported-no-evidence"]),
+        ("empty-evidence-required", ["scenario-empty-evidence-required"]),
+        ("unanswerable-outcome", ["scenario-unanswerable-outcome"]),
+        ("contradiction-revisions", ["scenario-contradiction-revisions"]),
+        ("outcome-allowlist", ["scenario-outcome"]),
+        ("case-type-allowlist", ["scenario-case-type"]),
+        ("prohibited-field", ["scenario-prohibited-field"]),
+        ("safety-allowlist", ["scenario-safety"]),
+        ("abstention-reason-allowlist", ["scenario-abstention-reason"]),
+        ("evidence-missing", ["scenario-evidence-missing"]),
+    ],
+)
+def test_scenario_contract_violations_fail_closed(
+    tmp_path: Path, case: str, expected_reasons: list[str]
+) -> None:
+    """PR3 scenario contracts: each documented violation fails closed with the
+    matching stable reason code(s). Covers count, language split, pair shape,
+    parity, balance, evidence language isolation, supported-evidence requirement,
+    empty-evidence case types, unanswerable outcome, contradiction paired
+    revisions, and the outcome/case-type/safety/reason/prohibited-field allowlists."""
+    validator = _load_validator()
+    root = _copy_dataset(tmp_path)
+    manifest = _load_manifest(root)
+
+    if case == "count":
+        # Remove all scenarios to drop below 32.
+        for art in list(manifest["artifacts"]):
+            if art.get("kind") == "scenario":
+                (root / art["path"]).unlink()
+        manifest["artifacts"] = [a for a in manifest["artifacts"] if a.get("kind") != "scenario"]
+    elif case == "language-split":
+        # Convert one es scenario to en to break the 16/16 split (17 en / 15 es).
+        target = root / "scenarios" / "eval-01.es.json"
+        payload = json.loads(target.read_bytes().decode("utf-8"))
+        payload["language"] = "en"
+        payload["id"] = "scenario.eval-01.en"
+        target.unlink()
+        _write_scenario(root, "eval-01", "en", payload)
+        _replace_scenario_in_manifest(payload, manifest, "eval-01", "en")
+        # Remove the original en to avoid a duplicate pair-language finding masking this.
+        (root / "scenarios" / "eval-01.en.json").unlink()
+        manifest["artifacts"] = [
+            a for a in manifest["artifacts"] if a.get("path") != "scenarios/eval-01.en.json"
+        ]
+    elif case == "pair-shape":
+        # Add a third scenario to eval-01 via a distinct file path so the pair
+        # contains three members (two es, one en). The manifest gets a new
+        # scenario artifact with a unique path; no duplicate-path masking.
+        extra = _valid_scenario_payload(
+            pair_id="eval-01",
+            language="es",
+            scenario_id="scenario.eval-01.es.dup",
+            evidence=["fragment.runbook-001.rev.1.es.original"],
+        )
+        dup_path = "scenarios/eval-01.es.dup.json"
+        (root / dup_path).write_bytes(_canonical_bytes(extra))
+        manifest["artifacts"].append(
+            {
+                "id": "scenario.eval-01.es.dup",
+                "kind": "scenario",
+                "path": dup_path,
+                "sha256": _sha256(_canonical_bytes(extra)),
+            }
+        )
+    elif case == "parity":
+        # Flip eval-01.en case_type to break parity with eval-01.es.
+        target = root / "scenarios" / "eval-01.en.json"
+        payload = json.loads(target.read_bytes().decode("utf-8"))
+        payload["case_type"] = "contradictory"
+        _write_scenario(root, "eval-01", "en", payload)
+        _replace_scenario_in_manifest(payload, manifest, "eval-01", "en")
+    elif case == "balance-grounded":
+        # Flip a supported scenario to an abstention outcome (15 grounded / 17 abstention).
+        target = root / "scenarios" / "eval-01.es.json"
+        payload = json.loads(target.read_bytes().decode("utf-8"))
+        payload["expected_outcome"] = "out_of_scope"
+        payload["case_type"] = "out-of-scope"
+        payload["abstention_reason"] = "out-of-scope"
+        payload["evidence"] = []
+        _write_scenario(root, "eval-01", "es", payload)
+        _replace_scenario_in_manifest(payload, manifest, "eval-01", "es")
+        # Also flip the en counterpart to preserve parity (so only balance fires).
+        t2 = root / "scenarios" / "eval-01.en.json"
+        p2 = json.loads(t2.read_bytes().decode("utf-8"))
+        p2["expected_outcome"] = "out_of_scope"
+        p2["case_type"] = "out-of-scope"
+        p2["abstention_reason"] = "out-of-scope"
+        p2["evidence"] = []
+        _write_scenario(root, "eval-01", "en", p2)
+        _replace_scenario_in_manifest(p2, manifest, "eval-01", "en")
+    elif case == "evidence-language-mismatch":
+        # An es scenario references an en fragment.
+        target = root / "scenarios" / "eval-01.es.json"
+        payload = json.loads(target.read_bytes().decode("utf-8"))
+        payload["evidence"] = ["fragment.adr-002.rev.1.en.original"]
+        _write_scenario(root, "eval-01", "es", payload)
+        _replace_scenario_in_manifest(payload, manifest, "eval-01", "es")
+    elif case == "supported-no-evidence":
+        # A supported scenario with empty evidence.
+        target = root / "scenarios" / "eval-01.es.json"
+        payload = json.loads(target.read_bytes().decode("utf-8"))
+        payload["evidence"] = []
+        _write_scenario(root, "eval-01", "es", payload)
+        _replace_scenario_in_manifest(payload, manifest, "eval-01", "es")
+    elif case == "empty-evidence-required":
+        # An out-of-scope scenario that carries evidence.
+        target = root / "scenarios" / "eval-13.es.json"
+        payload = json.loads(target.read_bytes().decode("utf-8"))
+        payload["evidence"] = ["fragment.runbook-001.rev.1.es.original"]
+        _write_scenario(root, "eval-13", "es", payload)
+        _replace_scenario_in_manifest(payload, manifest, "eval-13", "es")
+    elif case == "unanswerable-outcome":
+        # An unanswerable scenario that declares a supported outcome.
+        target = root / "scenarios" / "eval-14.es.json"
+        payload = json.loads(target.read_bytes().decode("utf-8"))
+        payload["expected_outcome"] = "supported"
+        _write_scenario(root, "eval-14", "es", payload)
+        _replace_scenario_in_manifest(payload, manifest, "eval-14", "es")
+    elif case == "contradiction-revisions":
+        # A contradiction scenario that references only a single revision.
+        target = root / "scenarios" / "eval-11.es.json"
+        payload = json.loads(target.read_bytes().decode("utf-8"))
+        payload["evidence"] = ["fragment.runbook-001.rev.1.es.original"]
+        _write_scenario(root, "eval-11", "es", payload)
+        _replace_scenario_in_manifest(payload, manifest, "eval-11", "es")
+    elif case == "outcome-allowlist":
+        target = root / "scenarios" / "eval-01.es.json"
+        payload = json.loads(target.read_bytes().decode("utf-8"))
+        payload["expected_outcome"] = "definitely-supported"
+        _write_scenario(root, "eval-01", "es", payload)
+        _replace_scenario_in_manifest(payload, manifest, "eval-01", "es")
+    elif case == "case-type-allowlist":
+        target = root / "scenarios" / "eval-01.es.json"
+        payload = json.loads(target.read_bytes().decode("utf-8"))
+        payload["case_type"] = "hallucination"
+        _write_scenario(root, "eval-01", "es", payload)
+        _replace_scenario_in_manifest(payload, manifest, "eval-01", "es")
+    elif case == "prohibited-field":
+        target = root / "scenarios" / "eval-01.es.json"
+        payload = json.loads(target.read_bytes().decode("utf-8"))
+        payload["answer"] = "synthetic answer prose must be rejected"
+        _write_scenario(root, "eval-01", "es", payload)
+        _replace_scenario_in_manifest(payload, manifest, "eval-01", "es")
+    elif case == "safety-allowlist":
+        target = root / "scenarios" / "eval-01.es.json"
+        payload = json.loads(target.read_bytes().decode("utf-8"))
+        payload["safety_classification"] = "dangerous"
+        _write_scenario(root, "eval-01", "es", payload)
+        _replace_scenario_in_manifest(payload, manifest, "eval-01", "es")
+    elif case == "abstention-reason-allowlist":
+        target = root / "scenarios" / "eval-01.es.json"
+        payload = json.loads(target.read_bytes().decode("utf-8"))
+        payload["abstention_reason"] = "made-up-reason"
+        _write_scenario(root, "eval-01", "es", payload)
+        _replace_scenario_in_manifest(payload, manifest, "eval-01", "es")
+    elif case == "evidence-missing":
+        target = root / "scenarios" / "eval-01.es.json"
+        payload = json.loads(target.read_bytes().decode("utf-8"))
+        payload["evidence"] = ["fragment.does-not-exist"]
+        _write_scenario(root, "eval-01", "es", payload)
+        _replace_scenario_in_manifest(payload, manifest, "eval-01", "es")
+    else:  # pragma: no cover - exhausted by parametrize
+        raise AssertionError(f"unknown PR3 case: {case}")
+
+    _recompute_manifest_self_hash(root, manifest)
+    findings = validator.validate(root)
+    reasons = _reasons(findings)
+    for expected in expected_reasons:
+        assert expected in reasons, (case, expected, findings)
+
+
 def test_valid_scenarios_load_with_zero_findings(tmp_path: Path) -> None:
     """Baseline: the committed dataset (entries + fragments + 32 scenarios)
     validates cleanly with zero findings."""
@@ -486,3 +722,25 @@ def test_valid_scenarios_load_with_zero_findings(tmp_path: Path) -> None:
     root = _copy_dataset(tmp_path)
     findings = validator.validate(root)
     assert findings == [], findings
+
+
+def test_scenario_catalog_contract_holds(tmp_path: Path) -> None:
+    """The committed dataset meets the exact 32-scenario / 16-pair / 16-16
+    balance / 16-16 language-split contract deterministically."""
+    validator = _load_validator()
+    root = _copy_dataset(tmp_path)
+    findings = validator.validate(root)
+    # No count/split/pair/parity/balance findings means the contract holds.
+    contract_reasons = {
+        "scenario-count",
+        "scenario-language-split",
+        "scenario-pair-count",
+        "scenario-pair-shape",
+        "scenario-pair-language",
+        "scenario-parity",
+        "scenario-parity-evidence-shape",
+        "scenario-balance-grounded",
+        "scenario-balance-abstention",
+    }
+    present = {f[1] for f in findings}
+    assert not (contract_reasons & present), findings
