@@ -474,3 +474,17 @@ def test_valid_fragments_load_with_zero_findings(tmp_path: Path) -> None:
     root = _copy_dataset(tmp_path)
     findings = validator.validate(root)
     assert findings == [], findings
+
+
+# --- PR3: Scenarios + Parity + Balance (RED first, then GREEN coverage) ---
+
+
+def test_valid_scenarios_load_with_zero_findings(tmp_path: Path) -> None:
+    """Baseline: the committed dataset (entries + fragments + 32 scenarios)
+    validates cleanly with zero findings."""
+    validator = _load_validator()
+    root = _copy_dataset(tmp_path)
+    findings = validator.validate(root)
+    assert findings == [], findings
+
+
