@@ -18,6 +18,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import stat
 import sys
 from pathlib import Path
@@ -45,6 +46,18 @@ ALLOWED_OCR_QUALITY = frozenset({"low", "medium", "high"})
 # that looks like a sensitive identifier without the marker.
 SENSITIVE_FICTITIOUS_VALUES = frozenset({True})
 SENSITIVE_PATTERNS = ("example.test", "TEST-", "INVALID")
+# Production-looking identifier patterns that are NOT obviously fictitious. A
+# fragment whose content or source metadata carries one of these without an
+# explicit `fictitious: true` marker fails closed. Patterns are deliberately
+# conservative so legitimate synthetic content (uppercase words, example.test,
+# TEST-, INVALID) does not false-positive.
+_PRODUCTION_LOOKING_PATTERNS: tuple[re.Pattern[str], ...] = (
+    # Company-shaped identifier with a numeric suffix, e.g. ACME-123456.
+    re.compile(r"\b[A-Z]{2,}-\d{4,}\b"),
+    # Internal hostname / domain that is not a reserved example domain, e.g.
+    # production.internal, corp.example.com (but NOT example.test).
+    re.compile(r"\b(?:[a-z0-9-]+\.)+(?:internal|local|corp|intranet|private)\b"),
+)
 # No entry, fragment, or scenario may reference image content. The dataset is
 # text-only; OCR cases carry extracted text plus provenance, never images.
 PROHIBITED_IMAGE_FIELDS = frozenset(
@@ -138,6 +151,82 @@ def _canonical_bytes(payload: Any) -> bytes:
 
 def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def _has_production_looking_identifier(payload: dict[str, Any]) -> bool:
+    """Return True when fragment content or source metadata carries an
+    identifier that looks like real production data without the fictitious
+    marker. Only string content and source_reference are scanned; sensitive
+    text is never logged by callers (only a safe path/id and reason code).
+    """
+    for field in ("content", "source_reference"):
+        value = payload.get(field)
+        if not isinstance(value, str) or not value:
+            continue
+        for pattern in _PRODUCTION_LOOKING_PATTERNS:
+            if pattern.search(value):
+                return True
+    return False
+
+
+def _collect_payload_ids(
+    root: Path, files: list[Path], index_by_path: dict[str, dict[str, Any]]
+) -> dict[str, list[str]]:
+    """Collect payload IDs grouped by ID value, mapping each ID to the sorted
+    list of repository-relative payload paths that declare it. Only entry,
+    fragment, and scenario payload files are scanned.
+
+    Manifest artifact IDs are NOT inserted here. Manifest-to-payload ID
+    equality is already enforced per artifact by `_validate_entry`,
+    `_validate_fragment`, and `_validate_scenario` (`*-id-mismatch`). Inserting
+    manifest IDs would double-count every valid artifact (one manifest
+    declaration plus one payload declaration share one ID by design) and emit a
+    false `duplicate-identifier` finding on every valid dataset. Uniqueness
+    here detects only collisions across distinct payload artifacts.
+    """
+    id_to_paths: dict[str, list[str]] = {}
+    # Payload IDs only; manifest IDs are checked against payloads by the
+    # per-artifact *-id-mismatch validators, not re-collected here.
+    for path in files:
+        rel = _relative(path, root)
+        if rel == MANIFEST_PATH:
+            continue
+        artifact_meta = index_by_path.get(rel)
+        kind = artifact_meta.get("kind") if artifact_meta else None
+        if kind not in {"entry", "fragment", "scenario"}:
+            continue
+        payload, _read_findings = _safe_read_json(path, root)
+        if isinstance(payload, dict):
+            payload_id = payload.get("id")
+            if isinstance(payload_id, str) and payload_id:
+                id_to_paths.setdefault(payload_id, []).append(rel)
+    # Deduplicate paths within each ID group while preserving sort order.
+    for identifier in id_to_paths:
+        id_to_paths[identifier] = sorted(set(id_to_paths[identifier]))
+    return id_to_paths
+
+
+def _validate_identifier_uniqueness(
+    root: Path, files: list[Path], index_by_path: dict[str, dict[str, Any]]
+) -> list[Diagnostic]:
+    """Fail closed when any stable payload ID is declared by more than one
+    artifact. Reports a stable reason code naming the duplicate ID and the
+    colliding paths; no content/query/evidence text is logged.
+    """
+    findings: list[Diagnostic] = []
+    rel = _relative(root / MANIFEST_PATH, root)
+    id_to_paths = _collect_payload_ids(root, files, index_by_path)
+    for identifier in sorted(id_to_paths):
+        paths = id_to_paths[identifier]
+        if len(paths) > 1:
+            findings.append(
+                (
+                    rel,
+                    "duplicate-identifier",
+                    f"remove the duplicate stable identifier '{identifier}' declared at {paths}",
+                )
+            )
+    return findings
 
 
 def _safe_artifact_target(
@@ -588,6 +677,20 @@ def _validate_fragment(
     if "fictitious" in payload and payload.get("fictitious") not in SENSITIVE_FICTITIOUS_VALUES:
         findings.append(
             (rel, "fragment-fictitious-marker", "set 'fictitious' to true or remove the marker")
+        )
+    # Production-looking identifier enforcement: content or source metadata
+    # that carries an identifier shaped like real production data (e.g.
+    # ACME-123456, production.internal) without an explicit `fictitious: true`
+    # marker fails closed. Only a safe path/id and reason code are reported;
+    # sensitive text is never logged.
+    if payload.get("fictitious") is not True and _has_production_looking_identifier(payload):
+        findings.append(
+            (
+                rel,
+                "fragment-production-looking-identifier",
+                "use obviously fictitious identifiers (example.test, TEST-, INVALID) "
+                "or mark the fragment 'fictitious: true'",
+            )
         )
     # Parent entry resolution and language match.
     entry_id = payload.get("entry_id")
@@ -1175,6 +1278,8 @@ def validate(root: Path) -> list[Diagnostic]:
                         scenario_payloads.append(payload)
         # Catalog contract: count, language split, pairs, parity, balance.
         findings.extend(_validate_scenario_catalog(scenario_payloads, resolved))
+        # Stable identifier uniqueness: duplicate payload IDs fail closed.
+        findings.extend(_validate_identifier_uniqueness(resolved, files, index_by_path))
 
     if manifest is not None:
         findings.extend(_validate_manifest_artifact_hashes(resolved, manifest))

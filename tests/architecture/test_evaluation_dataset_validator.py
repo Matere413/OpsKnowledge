@@ -1332,3 +1332,107 @@ def test_filesystem_encoding_mutation_reason_codes(
         _recompute_manifest_self_hash(root, manifest)
     findings = validator.validate(root)
     assert expected_reason in _reasons(findings), (case, findings)
+
+
+# --- Phase 4.5: Verify-report remediation (validator + tests only) ---
+#
+# Tasks 4.5-4.7 remediate two CRITICAL verify findings (duplicate stable
+# identifiers silently accepted; production-looking sensitive identifiers not
+# rejected) and one WARNING (fragment-parent-not-approved lacks an independent
+# mutation assertion). Each test copies the valid dataset to tmp_path, mutates
+# one file/field, updates canonical hashes, and asserts the exact safe reason
+# code. No content/query/evidence text is logged; diagnostics carry only a safe
+# path/id, reason code, and remediation hint.
+
+
+def _load_fragment_payload(root: Path, rel: str) -> dict[str, Any]:
+    return json.loads((root / rel).read_bytes().decode("utf-8"))
+
+
+def _update_artifact_sha256(manifest: dict[str, Any], rel: str, payload: dict[str, Any]) -> None:
+    artifact = next(a for a in manifest["artifacts"] if a.get("path") == rel)
+    artifact["sha256"] = _sha256(_canonical_bytes(payload))
+
+
+def test_duplicate_scenario_id_fails_closed(tmp_path: Path) -> None:
+    """Task 4.5: mutating a scenario ID to collide with an existing scenario ID
+    fails closed with 'duplicate-identifier'. The manifest artifact ID and the
+    scenario payload ID both change, canonical hashes are recomputed, and the
+    validator reports the exact reason code naming the duplicate occurrences."""
+    validator = _load_validator()
+    root = _copy_dataset(tmp_path)
+    manifest = _load_manifest(root)
+    # Mutate scenario.eval-02.en payload id to collide with scenario.eval-01.en.
+    target_rel = "scenarios/eval-02.en.json"
+    scenario = _load_scenario(root, target_rel)
+    scenario["id"] = "scenario.eval-01.en"
+    _write_scenario(root, "eval-02", "en", scenario)
+    # Update the manifest artifact id and sha256 for eval-02.en to match.
+    _replace_scenario_in_manifest(scenario, manifest, "eval-02", "en")
+    _recompute_manifest_self_hash(root, manifest)
+    findings = validator.validate(root)
+    reasons = _reasons(findings)
+    assert "duplicate-identifier" in reasons, findings
+    # The finding is safe: only a path/id, reason code, and remediation hint.
+    dup_findings = [f for f in findings if f[1] == "duplicate-identifier"]
+    assert dup_findings, findings
+    remediation = dup_findings[0][2]
+    assert "scenario.eval-01.en" in remediation, remediation
+    # No content/query/evidence text is logged in the diagnostic.
+    assert "evidence" not in remediation.lower(), remediation
+
+
+def test_production_looking_identifier_fails_closed(tmp_path: Path) -> None:
+    """Task 4.6: a fragment with production-looking identifiers (ACME-123456,
+    production.internal) and no `fictitious: true` marker fails closed with
+    'fragment-production-looking-identifier'. The sensitive text is never
+    logged; only a safe path/id, reason code, and remediation hint appear."""
+    validator = _load_validator()
+    root = _copy_dataset(tmp_path)
+    manifest = _load_manifest(root)
+    # Replace the sensitive fixture content with production-looking identifiers
+    # and remove the fictitious marker.
+    rel = "fragments/policy-003.rev.1.es.sensitive.json"
+    fragment = _load_fragment_payload(root, rel)
+    fragment["content"] = "Sensitive record for account ACME-123456 on production.internal."
+    fragment.pop("fictitious", None)
+    fragment["content_sha256"] = _sha256(fragment["content"].encode("utf-8"))
+    _write_fragment(root, rel, fragment)
+    _update_artifact_sha256(manifest, rel, fragment)
+    _recompute_manifest_self_hash(root, manifest)
+    findings = validator.validate(root)
+    reasons = _reasons(findings)
+    assert "fragment-production-looking-identifier" in reasons, findings
+    # The diagnostic is safe: no sensitive text (ACME-123456, production.internal)
+    # appears in any remediation hint or reason code.
+    for _path, _reason, remediation in findings:
+        assert "ACME-123456" not in remediation, remediation
+        assert "production.internal" not in remediation, remediation
+
+
+def test_fragment_parent_not_approved_fails_closed(tmp_path: Path) -> None:
+    """Task 4.7: mutating a parent entry's approval to a non-approved value
+    causes every fragment referencing that parent to fail closed with
+    'fragment-parent-not-approved'. Preserves existing validator behavior; no
+    validator change required for this branch."""
+    validator = _load_validator()
+    root = _copy_dataset(tmp_path)
+    manifest = _load_manifest(root)
+    # Mutate the parent entry approval to a non-approved value.
+    entry_rel = "entries/policy-003.rev.1.json"
+    entry = _load_entry(root, entry_rel)
+    entry["approval"] = "draft"
+    entry["content_sha256"] = _sha256(entry["content"].encode("utf-8"))
+    _write_json(root, entry_rel, entry)
+    _update_artifact_sha256(manifest, entry_rel, entry)
+    _recompute_manifest_self_hash(root, manifest)
+    findings = validator.validate(root)
+    reasons = _reasons(findings)
+    assert "fragment-parent-not-approved" in reasons, findings
+    # The finding is safe: only a path/id, reason code, and remediation hint.
+    parent_findings = [f for f in findings if f[1] == "fragment-parent-not-approved"]
+    assert parent_findings, findings
+    # No content/query/evidence text is logged in the diagnostic.
+    for _path, _reason, remediation in parent_findings:
+        assert remediation, "remediation hint must be non-empty"
+        assert "approved" in remediation, remediation
