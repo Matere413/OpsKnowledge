@@ -987,3 +987,348 @@ def test_cli_exit_two_on_bad_argv_final_form() -> None:
     )
     assert result.returncode == 2, (result.stdout, result.stderr)
     assert "usage" in result.stderr, result.stderr
+
+
+# --- PR4c: fragment field, scenario field/catalog, hash/reference,
+#     and filesystem/encoding mutation coverage (task 4.1 remainder) ---
+#
+# These tests complete the task 4.1 mutation suite: every remaining documented
+# failure class for fragment fields, scenario fields/catalog, manifest
+# hash/reference integrity, and filesystem/encoding guards. Each test copies
+# the committed valid dataset to tmp_path, mutates one file/field, recomputes
+# the manifest self-hash when needed, and asserts the exact stable reason code.
+# No corpus duplication; no network/DB/provider/subprocess access.
+
+
+def _fragment_artifact(manifest: dict[str, Any], rel: str) -> dict[str, Any]:
+    return next(a for a in manifest["artifacts"] if a.get("path") == rel)
+
+
+def _scenario_manifest_artifact(
+    manifest: dict[str, Any], pair_id: str, language: str
+) -> dict[str, Any]:
+    return next(
+        a for a in manifest["artifacts"] if a.get("path") == f"scenarios/{pair_id}.{language}.json"
+    )
+
+
+def _load_fragment(root: Path, rel: str) -> dict[str, Any]:
+    return json.loads((root / rel).read_bytes().decode("utf-8"))
+
+
+@pytest.mark.parametrize(
+    ("case", "expected_reason"),
+    [
+        ("fragment-shape", "fragment-shape"),
+        ("fragment-missing-field", "fragment-missing-field"),
+        ("fragment-language", "fragment-language"),
+        ("fragment-approval", "fragment-approval"),
+        ("fragment-classification", "fragment-classification"),
+        ("fragment-profile", "fragment-profile"),
+        ("fragment-content", "fragment-content"),
+        ("fragment-entry-id", "fragment-entry-id"),
+        ("fragment-id-mismatch", "fragment-id-mismatch"),
+    ],
+)
+def test_fragment_field_mutation_reason_codes(
+    tmp_path: Path, case: str, expected_reason: str
+) -> None:
+    """PR4c: each fragment field/shape mutation fails closed with the exact reason."""
+    validator = _load_validator()
+    root = _copy_dataset(tmp_path)
+    manifest = _load_manifest(root)
+    rel = "fragments/runbook-001.rev.1.es.original.json"
+
+    if case == "fragment-shape":
+        _write_json(root, rel, [])
+        _recompute_manifest_self_hash(root, manifest)
+        assert expected_reason in _reasons(validator.validate(root)), (case,)
+        return
+
+    fragment = _load_fragment(root, rel)
+    if case == "fragment-missing-field":
+        del fragment["provenance"]
+    elif case == "fragment-language":
+        fragment["language"] = "fr"
+    elif case == "fragment-approval":
+        fragment["approval"] = "draft"
+    elif case == "fragment-classification":
+        fragment["classification"] = "corporate"
+    elif case == "fragment-profile":
+        fragment["profile"] = "production"
+    elif case == "fragment-content":
+        fragment["content"] = ""
+    elif case == "fragment-entry-id":
+        fragment["entry_id"] = ""
+    elif case == "fragment-id-mismatch":
+        _fragment_artifact(manifest, rel)["id"] = "fragment.wrong-id"
+    else:  # pragma: no cover - exhausted by parametrize
+        raise AssertionError(f"unknown case: {case}")
+    _write_json(root, rel, fragment)
+    _recompute_manifest_self_hash(root, manifest)
+    assert expected_reason in _reasons(validator.validate(root)), (case,)
+
+
+@pytest.mark.parametrize(
+    ("case", "expected_reason"),
+    [
+        ("scenario-shape", "scenario-shape"),
+        ("scenario-missing-field", "scenario-missing-field"),
+        ("scenario-approval", "scenario-approval"),
+        ("scenario-classification", "scenario-classification"),
+        ("scenario-profile", "scenario-profile"),
+        ("scenario-language", "scenario-language"),
+        ("scenario-claim-expectation", "scenario-claim-expectation"),
+        ("scenario-evidence-shape", "scenario-evidence-shape"),
+        ("scenario-evidence-ref", "scenario-evidence-ref"),
+        ("scenario-id-mismatch", "scenario-id-mismatch"),
+    ],
+)
+def test_scenario_field_mutation_reason_codes(
+    tmp_path: Path, case: str, expected_reason: str
+) -> None:
+    """PR4c: each scenario field/shape mutation fails closed with the exact reason."""
+    validator = _load_validator()
+    root = _copy_dataset(tmp_path)
+    manifest = _load_manifest(root)
+    pair_id, language = "eval-01", "es"
+    rel = f"scenarios/{pair_id}.{language}.json"
+
+    if case == "scenario-shape":
+        _write_json(root, rel, [])
+        _recompute_manifest_self_hash(root, manifest)
+        assert expected_reason in _reasons(validator.validate(root)), (case,)
+        return
+
+    scenario = _load_scenario(root, rel)
+    if case == "scenario-missing-field":
+        del scenario["case_type"]
+    elif case == "scenario-approval":
+        scenario["approval"] = "draft"
+    elif case == "scenario-classification":
+        scenario["classification"] = "corporate"
+    elif case == "scenario-profile":
+        scenario["profile"] = "production"
+    elif case == "scenario-language":
+        scenario["language"] = "fr"
+    elif case == "scenario-claim-expectation":
+        scenario["claim_expectation"] = ""
+    elif case == "scenario-evidence-shape":
+        scenario["evidence"] = "not-a-list"
+    elif case == "scenario-evidence-ref":
+        scenario["evidence"] = [123, "fragment.runbook-001.rev.1.es.original"]
+    elif case == "scenario-id-mismatch":
+        _scenario_manifest_artifact(manifest, pair_id, language)["id"] = "scenario.wrong-id"
+    else:  # pragma: no cover - exhausted by parametrize
+        raise AssertionError(f"unknown case: {case}")
+    _write_json(root, rel, scenario)
+    _recompute_manifest_self_hash(root, manifest)
+    assert expected_reason in _reasons(validator.validate(root)), (case,)
+
+
+def test_scenario_balance_abstention_mutation_reason_code(tmp_path: Path) -> None:
+    """PR4c: flipping an abstention pair to supported breaks the 16/16 balance
+    and fails closed with scenario-balance-abstention (parity preserved)."""
+    validator = _load_validator()
+    root = _copy_dataset(tmp_path)
+    manifest = _load_manifest(root)
+    for lang, frag in (
+        ("es", "fragment.policy-003.rev.1.es.original"),
+        ("en", "fragment.adr-002.rev.2.en.original"),
+    ):
+        rel = f"scenarios/eval-13.{lang}.json"
+        s = _load_scenario(root, rel)
+        s["expected_outcome"] = "supported"
+        s["case_type"] = "grounded"
+        s["abstention_reason"] = "none"
+        s["evidence"] = [frag]
+        _write_scenario(root, "eval-13", lang, s)
+        _replace_scenario_in_manifest(s, manifest, "eval-13", lang)
+    _recompute_manifest_self_hash(root, manifest)
+    assert "scenario-balance-abstention" in _reasons(validator.validate(root))
+
+
+def test_scenario_pair_count_mutation_reason_code(tmp_path: Path) -> None:
+    """PR4c: a 17th pair (two new scenarios) breaks the 16-pair contract."""
+    validator = _load_validator()
+    root = _copy_dataset(tmp_path)
+    manifest = _load_manifest(root)
+    extras = {
+        "es": ("scenario.eval-99.es", "fragment.runbook-001.rev.1.es.original"),
+        "en": ("scenario.eval-99.en", "fragment.adr-002.rev.1.en.original"),
+    }
+    for lang, (sid, frag) in extras.items():
+        extra = _valid_scenario_payload(
+            pair_id="eval-99", language=lang, scenario_id=sid, evidence=[frag]
+        )
+        path = f"scenarios/eval-99.{lang}.json"
+        (root / path).write_bytes(_canonical_bytes(extra))
+        manifest["artifacts"].append(
+            {
+                "id": sid,
+                "kind": "scenario",
+                "path": path,
+                "sha256": _sha256(_canonical_bytes(extra)),
+            }
+        )
+    _recompute_manifest_self_hash(root, manifest)
+    assert "scenario-pair-count" in _reasons(validator.validate(root))
+
+
+def test_scenario_pair_language_mutation_reason_code(tmp_path: Path) -> None:
+    """PR4c: a pair with two es scenarios (no en counterpart) fails closed
+    with scenario-pair-language. The file stays at eval-01.en.json (path
+    unchanged) but its payload declares language=es so the validator groups
+    both members as es."""
+    validator = _load_validator()
+    root = _copy_dataset(tmp_path)
+    manifest = _load_manifest(root)
+    rel = "scenarios/eval-01.en.json"
+    scenario = _load_scenario(root, rel)
+    scenario["language"] = "es"
+    _write_scenario(root, "eval-01", "en", scenario)
+    _scenario_manifest_artifact(manifest, "eval-01", "en")["sha256"] = _sha256(
+        _canonical_bytes(scenario)
+    )
+    _recompute_manifest_self_hash(root, manifest)
+    assert "scenario-pair-language" in _reasons(validator.validate(root))
+
+
+def test_scenario_parity_evidence_shape_mutation_reason_code(tmp_path: Path) -> None:
+    """PR4c: a pair whose es/en evidence lists differ in length fails closed
+    with scenario-parity-evidence-shape."""
+    validator = _load_validator()
+    root = _copy_dataset(tmp_path)
+    manifest = _load_manifest(root)
+    rel = "scenarios/eval-01.es.json"
+    scenario = _load_scenario(root, rel)
+    scenario["evidence"] = [
+        "fragment.runbook-001.rev.1.es.original",
+        "fragment.policy-003.rev.1.es.original",
+    ]
+    _write_scenario(root, "eval-01", "es", scenario)
+    _replace_scenario_in_manifest(scenario, manifest, "eval-01", "es")
+    _recompute_manifest_self_hash(root, manifest)
+    assert "scenario-parity-evidence-shape" in _reasons(validator.validate(root))
+
+
+def test_scenario_evidence_not_approved_mutation_reason_code(tmp_path: Path) -> None:
+    """PR4c: a supported scenario referencing an unapproved fragment fails closed
+    with scenario-evidence-not-approved."""
+    validator = _load_validator()
+    root = _copy_dataset(tmp_path)
+    manifest = _load_manifest(root)
+    unapproved = _valid_fragment_payload(
+        fragment_id="fragment.runbook-001.rev.1.es.unapproved",
+        entry_id="entry.runbook-001.rev.1",
+    )
+    unapproved["approval"] = "draft"
+    unapproved["content_sha256"] = _sha256(unapproved["content"].encode("utf-8"))
+    bad_rel = "fragments/runbook-001.rev.1.es.unapproved.json"
+    _write_fragment(root, bad_rel, unapproved)
+    manifest["artifacts"].append(
+        {
+            "id": "fragment.runbook-001.rev.1.es.unapproved",
+            "kind": "fragment",
+            "path": bad_rel,
+            "sha256": _sha256(_canonical_bytes(unapproved)),
+        }
+    )
+    rel = "scenarios/eval-01.es.json"
+    scenario = _load_scenario(root, rel)
+    scenario["evidence"] = ["fragment.runbook-001.rev.1.es.unapproved"]
+    _write_scenario(root, "eval-01", "es", scenario)
+    _replace_scenario_in_manifest(scenario, manifest, "eval-01", "es")
+    _recompute_manifest_self_hash(root, manifest)
+    assert "scenario-evidence-not-approved" in _reasons(validator.validate(root))
+
+
+# --- PR4c: hash/reference mutations (manifest + entry/fragment integrity) ---
+
+
+@pytest.mark.parametrize(
+    ("case", "expected_reason"),
+    [
+        ("file-hash-mismatch", "file-hash-mismatch"),
+        ("file-not-canonical-json", "file-not-canonical-json"),
+        ("manifest-dangling-reference", "manifest-dangling-reference"),
+    ],
+)
+def test_hash_reference_mutation_reason_codes(
+    tmp_path: Path, case: str, expected_reason: str
+) -> None:
+    """PR4c: manifest hash, non-canonical JSON, and dangling reference failures."""
+    validator = _load_validator()
+    root = _copy_dataset(tmp_path)
+    manifest = _load_manifest(root)
+    if case == "file-hash-mismatch":
+        _entry_artifact(manifest)["sha256"] = "0" * 64
+    elif case == "file-not-canonical-json":
+        (root / "entries/runbook-001.rev.1.json").write_bytes(b"{invalid json\n")
+    elif case == "manifest-dangling-reference":
+        _entry_artifact(manifest)["path"] = "entries/does-not-exist.rev.1.json"
+    else:  # pragma: no cover - exhausted by parametrize
+        raise AssertionError(f"unknown case: {case}")
+    _recompute_manifest_self_hash(root, manifest)
+    assert expected_reason in _reasons(validator.validate(root)), (case,)
+
+
+# --- PR4c: filesystem/encoding mutations (walk + read guards) ---
+
+
+def _apply_fs_encoding_case(root: Path, case: str) -> None:
+    """Apply a filesystem/encoding mutation in place. Cases that change on-disk
+    entry bytes do NOT recompute the manifest self-hash (the finding fires before
+    the hash path, or the hash path also fires with file-not-canonical-json)."""
+    rel = "entries/runbook-001.rev.1.json"
+    if case == "hidden-file-not-allowed":
+        (root / "entries" / ".hidden.json").write_bytes(b"{}\n")
+    elif case == "symlink-not-allowed":
+        (root / "entries" / "link.rev.1.json").symlink_to(root / rel)
+    elif case == "non-regular-file":
+        os.mkfifo(root / "entries" / "fifo.rev.1.json")
+    elif case == "non-json-file":
+        (root / "entries" / "notes.txt").write_bytes(b"{}\n")
+    elif case == "missing-trailing-lf":
+        (root / rel).write_bytes((root / rel).read_bytes().rstrip(b"\n"))
+    elif case == "extra-trailing-lf":
+        (root / rel).write_bytes((root / rel).read_bytes() + b"\n")
+    elif case == "bom-not-allowed":
+        (root / rel).write_bytes(b"\xef\xbb\xbf" + (root / rel).read_bytes())
+    elif case == "decode-error":
+        # Trailing LF present so LF guards pass; lone continuation byte fails decode.
+        (root / rel).write_bytes(b'{"id":"x"}\xff\n')
+    else:  # pragma: no cover - exhausted by parametrize
+        raise AssertionError(f"unknown case: {case}")
+
+
+@pytest.mark.parametrize(
+    ("case", "expected_reason"),
+    [
+        ("hidden-file-not-allowed", "hidden-file-not-allowed"),
+        ("symlink-not-allowed", "symlink-not-allowed"),
+        ("non-regular-file", "non-regular-file"),
+        ("non-json-file", "non-json-file"),
+        ("missing-trailing-lf", "missing-trailing-lf"),
+        ("extra-trailing-lf", "extra-trailing-lf"),
+        ("bom-not-allowed", "bom-not-allowed"),
+        ("decode-error", "decode-error"),
+    ],
+)
+def test_filesystem_encoding_mutation_reason_codes(
+    tmp_path: Path, case: str, expected_reason: str
+) -> None:
+    """PR4c: each filesystem/encoding guard fails closed with the exact reason.
+    Walk-level guards (hidden, symlink, non-regular, non-json) fire without any
+    manifest change; read-level guards (LF, BOM, decode) mutate an entry file and
+    recompute the manifest self-hash so the hash path does not mask the finding."""
+    validator = _load_validator()
+    root = _copy_dataset(tmp_path)
+    _apply_fs_encoding_case(root, case)
+    # Walk-level cases need no manifest recompute; read-level cases do, so the
+    # read finding surfaces instead of a stale file-hash-mismatch masking it.
+    if case in {"missing-trailing-lf", "extra-trailing-lf", "bom-not-allowed", "decode-error"}:
+        manifest = _load_manifest(root)
+        _recompute_manifest_self_hash(root, manifest)
+    findings = validator.validate(root)
+    assert expected_reason in _reasons(findings), (case, findings)
