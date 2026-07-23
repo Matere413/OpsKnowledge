@@ -318,6 +318,8 @@ def test_ci_completes_pr3_stages(tmp_path: Path) -> None:
     assert S_PYTEST_OK in ci_result.stdout
     assert _invocations(ci_log) == [
         *EXPECTED_PR2A_LOG[:2],
+        "uv run --frozen python scripts/ci/validate_evaluation_dataset.py evaluation-dataset",
+        "python scripts/ci/validate_evaluation_dataset.py evaluation-dataset",
         "uv run --frozen python scripts/ci/check_focused_tests.py .",
         "python scripts/ci/check_focused_tests.py .",
         *EXPECTED_PR2A_LOG[2:],

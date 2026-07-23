@@ -88,14 +88,15 @@ Pre-Phase 1 CI hardening
 - [x] `define-dental-guidance-domain-and-corpus` (superseded by `reposition-rag-as-portfolio-platform`)
 - [x] `define-rag-platform-architecture`
 - [x] `bootstrap-opsknowledge-test-harness`
-- [ ] `build-opsknowledge-evaluation-dataset`
+- [x] `build-opsknowledge-evaluation-dataset`
 
 **Completion notes:**
 
 - `define-dental-guidance-domain-and-corpus` — complete and superseded by `reposition-rag-as-portfolio-platform`. Historical SDD artifacts: Engram `sdd/define-dental-guidance-domain-and-corpus/{proposal (#3122), spec (#3125), design (#3133), tasks (#3134)}`. OpsKnowledge replacement artifacts: Engram `sdd/reposition-rag-as-portfolio-platform/{proposal (#3226), spec (#3227), design (#3228), tasks (#3229)}`.
 - `define-rag-platform-architecture` — complete (documentation only; no runtime, manifests, or lockfiles). Establishes the shared technology and architecture baseline: feature-organized modular monolith with hexagonal boundaries, prototype stack (FastAPI/React/Vite, PostgreSQL/pgvector, SQLAlchemy 2/Alembic/Psycopg 3, Docling, public OpenAI), Azure migration mapping with TI gates, data ownership/lifecycle, index lifecycle concurrency/revocation, atomic query persistence, accepted public-OpenAI free-text demo risk, and dependency governance. Artifacts: `AGENTS.md` (normative contributor contract), `governance/direct-dependencies.yaml` (governance evidence template), `docs/architecture/platform-architecture.md` (detailed architecture reference). SDD artifacts: Engram `sdd/define-rag-platform-architecture/{proposal (#3161), spec (#3162), design (#3163), tasks (#3194)}`. Implementation changes must establish the test harness first, then re-evaluate Strict TDD (testing baseline #3111).
 - `bootstrap-opsknowledge-test-harness` — complete. The bootstrap chain merged to `master` at `425f7ec`; its canonical local and GitHub Actions gate passed with 111 tests.
-- The Phase 0 foundation is complete when the governed synthetic bilingual sample and its 50/50 evaluation slice are established under these controls. The next product change is `build-opsknowledge-evaluation-dataset`; optional historical references do not block it.
+- `build-opsknowledge-evaluation-dataset` — complete and archived. Delivers a manifest-controlled bilingual synthetic corpus (5 entries, 8 fragments, 32 scenarios across `runbooks`/`adrs`/`operational-policies`), a dependency-free structural validator, and 122+ mutation tests. All 27 implementation tasks, 17 requirements, and 47 scenarios pass; review gate `allow`; archived at `openspec/changes/archive/2026-07-23-build-opsknowledge-evaluation-dataset/`. SDD artifacts: Engram `sdd/build-opsknowledge-evaluation-dataset/{proposal, spec, design, tasks, verify-report, archive-report}`.
+- The Phase 0 foundation is complete when the governed synthetic bilingual sample and its 50/50 evaluation slice are established under these controls. Optional historical references do not block it.
 
 ## Pre-Phase 1 — CI hardening
 

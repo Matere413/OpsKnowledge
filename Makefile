@@ -10,11 +10,12 @@ EXPECTED_UV_VERSION := 0.11.29
 # Never interpolate a configurable executable in shell command position.
 UV_RUN := python3 scripts/ci/run_uv_command.py
 
-.PHONY: ci ci-pr2a check-uv-version sync-env check-focused-tests ruff-check ruff-format pyright-check pytest-check check-dependency-boundaries check-audit license-inventory
+.PHONY: ci ci-pr2a check-uv-version sync-env check-focused-tests check-evaluation-dataset ruff-check ruff-format pyright-check pytest-check check-dependency-boundaries check-audit license-inventory
 
 ci: check-uv-version
 	@echo "=== uv version OK ==="
 	$(MAKE) sync-env
+	$(MAKE) check-evaluation-dataset
 	$(MAKE) check-focused-tests
 	$(MAKE) ruff-check
 	$(MAKE) ruff-format
@@ -79,3 +80,9 @@ pyright-check:
 pytest-check:
 	$(UV_RUN) run --frozen pytest
 	@echo "=== pytest OK ==="
+
+# Evaluation-dataset structural validator. Wired into `ci` before
+# check-focused-tests so a malformed dataset fails the canonical gate early.
+check-evaluation-dataset:
+	$(UV_RUN) run --frozen python scripts/ci/validate_evaluation_dataset.py evaluation-dataset
+	@echo "=== evaluation-dataset validator OK ==="

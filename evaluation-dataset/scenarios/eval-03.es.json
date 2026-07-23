@@ -1,0 +1,1 @@
+{"abstention_reason":"none","approval":"approved","case_type":"grounded","claim_expectation":"claim-grounded-03","classification":"synthetic","evidence":["fragment.runbook-001.rev.2.es.original"],"expected_outcome":"supported","id":"scenario.eval-03.es","language":"es","pair_id":"eval-03","profile":"development","safety_classification":"safe"}
