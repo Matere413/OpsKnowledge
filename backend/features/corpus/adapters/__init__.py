@@ -1,0 +1,1 @@
+"""Corpus outbound adapters."""
