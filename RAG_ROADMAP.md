@@ -2,7 +2,7 @@
 
 This document is the shared development route for OpsKnowledge: a bilingual technical knowledge platform over approved, versioned runbooks, ADRs, and operational policies. It records the current product decisions and assigns each capability to the future SDD phase where it belongs.
 
-No SDD change is active. The test-harness bootstrap is complete; each future candidate change below must run through its own SDD lifecycle and remain independently reviewable and reversible.
+No SDD change is active unless one is in progress. The test-harness bootstrap is complete; each future candidate change below must run through its own SDD lifecycle and remain independently reviewable and reversible. Phase 1 is absorbed and reframed (not complete) under `reframe-roadmap-for-direct-corporate-product`.
 
 ## Product boundary
 
@@ -33,21 +33,19 @@ No SDD change is active. The test-harness bootstrap is complete; each future can
                  ↓
 Pre-Phase 1 CI hardening
                  ↓
-1. Minimal grounded OpsKnowledge core
+1. Minimal grounded OpsKnowledge core (absorbed, reframed — not complete)
                  ↓
 2. Reproducible safety and quality evaluation
                  ↓
-3. Approved-source ingestion and index lifecycle
-                 ↓
-4. Bilingual retrieval and source-conflict handling
-                 ↓
-5. Grounded conversational generation
-                 ↓
+3. Approved-source ingestion and index lifecycle    ┐
+4. Bilingual retrieval and source-conflict handling  │ corporate processing
+5. Grounded conversational generation                │ blocked until all gates pass
+                 ↓                                    ┘
 6. Application services and data lifecycle
                  ↓
 7. Reader and operations web experience
                  ↓
-8. Corporate identity, privacy, and security
+8. Corporate identity, privacy, and security (co-prerequisite with 3–5)
                  ↓
 9. Operations, analytics, and controlled pilot
                  ↓
@@ -60,6 +58,8 @@ Pre-Phase 1 CI hardening
 | Document-aware core | 3–5 | Current approved entries produce fully grounded answers or safe abstentions |
 | Pilot-ready product | 6–9 | A secure web product ready for the one-week controlled pilot |
 | Wider production adoption | 10 | Capacity, additional sites, integrations, and formal production targets |
+
+**Corporate processing gate (normative):** no corporate data processing is allowed until all of identity, authorization, privacy/sensitive screening, controlled provider, and TI gates are documented as passed. Phase 8 gates are a **co-prerequisite** of Phases 3–5, not a later hardening step. The development synthetic fixture and the accepted public-OpenAI free-text demo risk remain two separate validation-only concerns; neither authorizes corporate processing.
 
 ## Phase 0 — Product baseline and evaluation assets
 
@@ -116,9 +116,25 @@ Pre-Phase 1 CI hardening
 
 ## Phase 1 — Minimal grounded OpsKnowledge core
 
-**Phase status:** [ ] Completed
+**Phase status:** [ ] Completed — reframed (not complete)
 
 **Objective:** Implement the smallest understandable pipeline that answers only from supplied textual evidence.
+
+Phase 1 is **absorbed into the future production-core path; it is not delivered.** PR #28 / merge `12ba6926` (`feat(core): add fail-closed corpus boundary`) merged only a bounded corpus slice into the development-only, fail-closed synthetic boundary. No retrieval, prompt, provider, outcome, or CLI capability is complete. The active, unarchived SDD change `build-minimal-grounded-opsknowledge-core` is retained as auditable history; its remaining work is rehomed as pending future production-core work. See `openspec/changes/reframe-roadmap-for-direct-corporate-product/phase-1-lineage-closure.md` for the bounded receipt and pending-work inventory.
+
+**Delivered by PR #28 / `12ba6926` (bounded, fail-closed, development-only):**
+
+- Fail-closed synthetic corpus boundary: `backend/features/corpus/{domain.py, application.py, adapters/manifest_loader.py}`.
+- Shared hexagonal ports: `backend/shared/ports.py` (retrieval, generation, and safe JSON logging protocols — defined, not implemented).
+- Corpus domain/application/loader tests: `tests/unit/test_opsknowledge_core.py`.
+
+**Pending production-core work (NOT delivered; no runtime capability implied):**
+
+- Retrieval (language-filtered, deterministic, evidence selection).
+- Prompt (evidence-constrained prompt construction).
+- Provider (replaceable generation provider, fake adapter, failure → `unavailable`).
+- Outcome (six-state deterministic rules, citation validation, abstention).
+- CLI (single JSON response, safe fields only, no persistence).
 
 ```text
 Approved entry text (runbook / ADR / policy)
@@ -134,7 +150,7 @@ Evidence-constrained prompt
 Answer or abstention with citations
 ```
 
-**Components:** document reader, chunker, embedding provider, in-memory index, retriever, prompt builder, replaceable LLM provider, answer model, citation model, and abstention result.
+**Components:** document reader, chunker, embedding provider, in-memory index, retriever, prompt builder, replaceable LLM provider, answer model, citation model, and abstention result. Only the corpus loader and shared ports exist today; the rest is planned, not delivered.
 
 **Rules established for this phase:**
 
@@ -148,7 +164,7 @@ Answer or abstention with citations
 
 **Candidate SDD change:**
 
-- [ ] `build-minimal-grounded-opsknowledge-core`
+- [ ] `build-minimal-grounded-opsknowledge-core` — active, unarchived; reframed (not complete). Only PR #28 / `12ba6926` corpus/ports slice credited; remainder pending (see closure note). Not archived; Phase 1 is not complete.
 
 ## Phase 2 — Reproducible safety and quality evaluation
 
@@ -387,6 +403,8 @@ Every retrieval change must be compared against the Phase 2 baseline.
 
 **Phase status:** [ ] Completed
 
+**Position:** Phase 8 is a **co-prerequisite with Phases 3–5** for any corporate data processing. Corporate data processing is blocked until identity, authorization, privacy/sensitive screening, controlled provider, and TI gates are all documented as passed (see [Corporate processing gate](#delivery-map)). The development-only synthetic fixture and the accepted public-OpenAI free-text demo risk are separate validation-only concerns and never authorize corporate processing.
+
 **Objective:** Restrict the system and its data to approved corporate identities and controlled infrastructure.
 
 **Identity and authorization:**
@@ -546,4 +564,4 @@ Do not create one change named `build-complete-rag-platform`. Prefer bounded cha
 
 ## Next step
 
-Phase 0 documentation baseline and the test-harness bootstrap are complete (see Phase 0 completion notes). Before Phase 1 implementation, complete `harden-focused-test-scanner-import-aliases`; `refresh-github-actions-node-runtime-pins` also belongs in this pre-Phase-1 CI-hardening boundary and remains independent for review and rollback. Obtain the pending Phase 0 and Phase 8 inputs before beginning product implementation. Architecture baseline and contributor contract: `AGENTS.md` and `docs/architecture/platform-architecture.md`. CI contributor rules: `docs/contributing/ci.md`. Dependency governance evidence: `governance/direct-dependencies.yaml`.
+Phase 0 documentation baseline and the test-harness bootstrap are complete (see Phase 0 completion notes). Phase 1 is **absorbed and reframed, not complete**: PR #28 / `12ba6926` delivered only the fail-closed synthetic corpus boundary, shared hexagonal ports, and corpus domain/application/loader; retrieval, prompt, provider, outcome, and CLI remain pending future production-core work (see `openspec/changes/reframe-roadmap-for-direct-corporate-product/phase-1-lineage-closure.md`). Phase 2 evaluation and all cross-phase safety invariants are retained unchanged. Corporate data processing is blocked until Phase 8 identity, authorization, privacy/sensitive screening, controlled provider, and TI gates pass; Phase 8 is a co-prerequisite of Phases 3–5, not a later step. The development synthetic fixture and the public-OpenAI demo risk remain separate validation-only concerns. Architecture baseline and contributor contract: `AGENTS.md` and `docs/architecture/platform-architecture.md`. CI contributor rules: `docs/contributing/ci.md`. Dependency governance evidence: `governance/direct-dependencies.yaml`.

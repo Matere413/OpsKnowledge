@@ -14,7 +14,7 @@ This document is the authoritative architecture reference for the OpsKnowledge p
 | Corporate data source | Approved versioned entries (`runbooks`, `adrs`, `operational-policies`) | `RAG_ROADMAP.md` Phase 3; spec #3162 |
 | Prototype corpus | Development-only manifest-controlled synthetic technical entries | spec #3162; `RAG_ROADMAP.md` product boundary |
 | Prototype generation | Public OpenAI (Responses API, `text-embedding-3-small`) as accepted risk | spec #3162 (Public-OpenAI Free-Text Accepted-Risk Boundary) |
-| Corporate generation | Azure OpenAI or another approved controlled provider | spec #3162; `RAG_ROADMAP.md` Phase 8 |
+| Corporate generation | Azure OpenAI or another approved controlled provider (planned; blocked until identity, authorization, privacy, controlled-provider, and TI gates pass) | spec #3162; `RAG_ROADMAP.md` Phase 8 |
 | Excluded | LangChain, LlamaIndex, streaming, visual interpretation, email/Notifier, unevidenced reranking, Redis, queues, Kubernetes, microservices | `AGENTS.md`; design #3163 |
 
 ### Logical architecture
@@ -439,6 +439,8 @@ The mappings below describe the TARGET/planned migration from the (also not-yet-
 | Compose environment | Managed Identity + Key Vault + Bicep | Private networking, budget, ownership |
 
 **TI gates are blocking.** Concrete tenant, group, region, endpoint, and network values are TI-gated and SHALL NOT be invented. Corporate deployment is blocked until all TI gates are met. No corporate Azure integration is introduced before TI clearance.
+
+**Corporate processing gate (normative, co-prerequisite with Phases 3–5):** no corporate data processing is available until identity, authorization, privacy/sensitive screening, controlled provider, and TI gates are all documented as passed. Phase 8 is a co-prerequisite of Phases 3–5, not a later hardening step. The direct corporate path is therefore **planned**, not available. The development-only synthetic corpus exception and the accepted public-OpenAI free-text demo risk remain two separate validation-only concerns (see [Accepted demo free-text risk](#accepted-demo-free-text-risk)); neither authorizes corporate processing.
 
 ## Risk register
 
