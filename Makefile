@@ -10,7 +10,7 @@ EXPECTED_UV_VERSION := 0.11.29
 # Never interpolate a configurable executable in shell command position.
 UV_RUN := python3 scripts/ci/run_uv_command.py
 
-.PHONY: ci ci-pr2a check-uv-version sync-env check-focused-tests check-evaluation-dataset ruff-check ruff-format pyright-check pytest-check check-dependency-boundaries check-audit license-inventory
+.PHONY: ci ci-pr2a check-uv-version sync-env check-focused-tests check-evaluation-dataset ruff-check ruff-format pyright-check pytest-check check-dependency-boundaries check-audit license-inventory eval-quality
 
 ci: check-uv-version
 	@echo "=== uv version OK ==="
@@ -86,3 +86,10 @@ pytest-check:
 check-evaluation-dataset:
 	$(UV_RUN) run --frozen python scripts/ci/validate_evaluation_dataset.py evaluation-dataset
 	@echo "=== evaluation-dataset validator OK ==="
+
+# Opt-in quality evaluation harness (NOT part of `ci`). Runs the 34-case
+# evaluation through the development kernel and promotes a reviewed safe
+# baseline under evaluation-runs/current/ (previous/ on replacement).
+eval-quality:
+	$(UV_RUN) run --frozen python -m backend.features.evaluation.cli evaluation-dataset
+	@echo "=== eval-quality OK ==="

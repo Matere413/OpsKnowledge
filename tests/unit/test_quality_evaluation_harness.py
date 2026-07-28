@@ -401,3 +401,111 @@ def test_five_metrics_are_numeric_and_threshold_free() -> None:
         assert signal.denominator >= 0
     assert metrics.outcome_classification.denominator == 34
     assert metrics.citation_exact_match.denominator == 34
+
+
+# ---------------------------------------------------------------------------
+# Task 3.1 RED: allowlisted JSON/JSONL/human output, forbidden-content absence,
+# incomplete-promotion rejection, atomic current/previous retention
+# ---------------------------------------------------------------------------
+
+_FORBIDDEN_CONTENT_TOKENS = (
+    "question",
+    "answer",
+    "claim",
+    "payload",
+    "internal_text",
+)
+
+
+def _frozen_summary():
+    from backend.features.evaluation.adapters.clock import FrozenClock
+    from backend.features.evaluation.application import run_evaluation
+
+    clock = FrozenClock(timestamp=1_700_000_000.0, duration_seconds=0.0)
+    return run_evaluation(_DATASET_ROOT, clock=clock)
+
+
+def test_json_summary_contains_only_allowlisted_fields() -> None:
+    import json
+
+    from backend.features.evaluation.adapters.report import serialize_summary
+
+    payload = serialize_summary(_frozen_summary())
+    data = json.loads(payload)
+    assert data["total_cases"] == 34
+    assert data["profile"] == "development"
+    assert "run_id" in data
+    assert "metrics" in data
+    raw = payload.lower()
+    for token in _FORBIDDEN_CONTENT_TOKENS:
+        assert token not in raw, f"forbidden content token in summary: {token}"
+
+
+def test_jsonl_records_contain_exactly_34_rows_and_safe_fields_only() -> None:
+    import json
+
+    from backend.features.evaluation.adapters.report import serialize_records
+
+    payload = serialize_records(_frozen_summary())
+    lines = [line for line in payload.strip().splitlines() if line]
+    assert len(lines) == 34
+    for line in lines:
+        record = json.loads(line)
+        assert "case_id" in record
+        assert "language" in record
+        assert "observed_outcome" in record
+        assert "reason_code" in record
+        assert "citations_match" in record
+        assert "question" not in record
+        assert "answer" not in record
+        assert "claim" not in record
+        assert "payload" not in record
+
+
+def test_human_output_is_concise_and_excludes_content() -> None:
+    from backend.features.evaluation.adapters.report import serialize_human
+
+    text = serialize_human(_frozen_summary())
+    assert "34" in text
+    assert "development" in text
+    low = text.lower()
+    for token in _FORBIDDEN_CONTENT_TOKENS:
+        assert token not in low, f"forbidden content token in human output: {token}"
+
+
+def test_incomplete_promotion_is_rejected_and_leaves_no_baseline() -> None:
+    from backend.features.evaluation.adapters.report import ReportAdapter
+
+    adapter = ReportAdapter(base_dir=_tmp_eval_runs())
+    raised = False
+    try:
+        adapter.promote(run_id="incomplete", payload=b"")
+    except Exception:
+        raised = True
+    assert raised is True
+    assert not (_tmp_eval_runs() / "current").exists()
+
+
+def test_atomic_retention_keeps_current_and_creates_previous_on_replacement() -> None:
+    from backend.features.evaluation.adapters.report import ReportAdapter, serialize_summary
+
+    base = _tmp_eval_runs()
+    adapter = ReportAdapter(base_dir=base)
+    first = serialize_summary(_frozen_summary())
+    adapter.promote(run_id="run-a", payload=first.encode("utf-8"))
+    current = base / "current"
+    assert current.exists()
+    first_files = sorted(current.iterdir())
+    assert len(first_files) == 1
+    assert not (base / "previous").exists()
+    second = serialize_summary(_frozen_summary())
+    adapter.promote(run_id="run-b", payload=second.encode("utf-8"))
+    assert (base / "previous").exists()
+    assert len(sorted((base / "previous").iterdir())) == len(first_files)
+    assert len(sorted(current.iterdir())) == 1
+
+
+def _tmp_eval_runs() -> Path:
+    import tempfile
+
+    return Path(tempfile.mkdtemp(prefix="eval-runs-"))
