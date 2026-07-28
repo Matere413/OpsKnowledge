@@ -39,12 +39,12 @@ Chain strategy: pending
 
 ## Phase 3: Safe Reports and Opt-In Wiring
 
-- [ ] 3.1 RED: Canary-test allowlisted JSON/JSONL/human output, no question/answer/citation/claim/provider content, incomplete-promotion rejection, and atomic current/previous retention (~45 lines).
-- [ ] 3.2 RED: Add architecture tests for fixed `UV_RUN` argv, validated paths, non-zero failure/no promotion, no new dependencies/providers/embeddings/persistence/HTTP/auth/UI/corporate/external services, unchanged `ci`, and RDD disabled per #1892 (~35 lines).
-- [ ] 3.3 GREEN: Create `adapters/report.py` and `cli.py`, add only opt-in `eval-quality`, and commit one reviewed safe `evaluation-runs/current/*`; create `previous` only on replacement (~110 lines).
+- [x] 3.1 RED: Canary-test allowlisted JSON/JSONL/human output, no question/answer/citation/claim/provider content, incomplete-promotion rejection, and atomic current/previous retention (~45 lines).
+- [x] 3.2 RED: Add architecture tests for fixed `UV_RUN` argv, validated paths, non-zero failure/no promotion, no new dependencies/providers/embeddings/persistence/HTTP/auth/UI/corporate/external services, unchanged `ci`, and RDD disabled per #1892 (~35 lines).
+- [x] 3.3 GREEN: Create `adapters/report.py` and `cli.py`, add only opt-in `eval-quality`, and commit one reviewed safe `evaluation-runs/current/*`; create `previous` only on replacement (~110 lines).
 
 ## Phase 4: Verification Evidence
 
-- [ ] 4.1 Run focused unit/architecture tests; record evidence for all seven scenarios; add no integration/E2E layer.
-- [ ] 4.2 Run `make eval-quality`; verify 34 records, five numeric metrics, deterministic safe output, bounded baselines, no thresholds/state.
-- [ ] 4.3 Run unchanged `make ci`; verify membership/order and do not initiate RDD review or enablement.
+- [x] 4.1 Run focused unit/architecture tests; record evidence for all eight authoritative scenarios; add no integration/E2E layer.
+- [x] 4.2 Run `make eval-quality`; verify 34 records, five numeric metrics, deterministic safe output, bounded baselines, no thresholds/state.
+- [x] 4.3 Run unchanged `make ci`; verify membership/order and do not initiate RDD review or enablement.

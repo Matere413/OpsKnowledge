@@ -1,0 +1,9 @@
+OpsKnowledge quality evaluation
+run_id: 25b742108455f8dc4d377495359c3f9a942a0836254a08b393a2768579fc0de3
+profile: development
+total_cases: 34
+outcome_classification: 9/34
+citation_exact_match: 10/34
+language_routing: 34/34
+sensitive_block: 2/2
+contradiction_detection: 0/4
