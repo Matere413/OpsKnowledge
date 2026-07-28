@@ -15,7 +15,7 @@ dev = [
 ]
 
 [tool.pyright]
-include = ["tests"]
+include = ["backend", "tests"]
 exclude = ["**/__pycache__", ".venv", ".git"]
 pythonVersion = "3.12"
 typeCheckingMode = "standard"

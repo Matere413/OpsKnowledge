@@ -287,6 +287,58 @@ def test_load_corpus_returns_immutable_fragments(tmp_path: Path) -> None:
     )
 
 
+def test_load_corpus_copies_explicit_parent_provenance_without_identifier_inference(
+    tmp_path: Path,
+) -> None:
+    entry_sha = _write_entry(
+        tmp_path,
+        "entries/source-name.json",
+        identifier="entry.source-name.rev.999",
+        logical_entry_id="logical-policy-7",
+        revision="release-candidate",
+        collection="operational-policies",
+        language="en",
+    )
+    frag_sha = _write_fragment(
+        tmp_path,
+        "fragments/arbitrary-fragment.json",
+        identifier="fragment.arbitrary-name.en.original",
+        entry_id="entry.source-name.rev.999",
+        language="en",
+    )
+    artifacts = [
+        _artifact("manifest.json", "manifest", "manifest", "placeholder"),
+        _artifact(
+            "entries/source-name.json",
+            "entry",
+            "entry.source-name.rev.999",
+            entry_sha,
+            revision="release-candidate",
+        ),
+        _artifact(
+            "fragments/arbitrary-fragment.json",
+            "fragment",
+            "fragment.arbitrary-name.en.original",
+            frag_sha,
+        ),
+    ]
+    manifest = _build_manifest(tmp_path, artifacts=artifacts)
+
+    fragment = load_corpus(manifest, profile="development").fragments[0]
+    parent = fragment.parent_provenance
+    assert parent.logical_entry_id == "logical-policy-7"
+    assert parent.revision == "release-candidate"
+    assert parent.collection == "operational-policies"
+    assert parent.language == "en"
+    assert parent.approval == "approved"
+    assert parent.classification == "synthetic"
+    assert parent.profile == "development"
+    _expect_raises(
+        (AttributeError, TypeError),
+        lambda: setattr(parent, "revision", "2"),
+    )
+
+
 def test_load_corpus_deterministic_order(tmp_path: Path) -> None:
     # Add a second entry+fragment to confirm stable identifier ordering.
     e1_sha = _write_entry(
