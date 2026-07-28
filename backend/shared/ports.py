@@ -58,6 +58,40 @@ OUTCOMES: Final[frozenset[str]] = frozenset(
 
 
 @dataclass(frozen=True, slots=True)
+class PromptEvidence:
+    """Immutable provider-boundary evidence record.
+
+    ``content`` is intentionally available only inside the in-memory prompt
+    boundary. It must never be copied to :class:`SafeResponse` or a log.
+    """
+
+    fragment_id: str
+    content: str
+
+
+@dataclass(frozen=True, slots=True)
+class GroundedPrompt:
+    """Immutable prompt containing only a question, rules, and approved evidence."""
+
+    question: str
+    language: str
+    evidence: tuple[PromptEvidence, ...]
+    rules: tuple[str, ...] = ()
+
+
+class ProviderFailure(Exception):
+    """Typed, content-free failure raised by a generation provider."""
+
+    __slots__ = ("reason_code",)
+
+    reason_code: str
+
+    def __init__(self, reason_code: str) -> None:
+        self.reason_code = reason_code
+        super().__init__(reason_code)
+
+
+@dataclass(frozen=True, slots=True)
 class GeneratedAnswer:
     """Provider-internal answer representation.
 
@@ -129,18 +163,11 @@ class Generate(Protocol):
     outcomes to recover from a failure. Only one bounded attempt is permitted.
     """
 
-    def generate(
-        self,
-        question: str,
-        evidence: tuple[Any, ...],
-        language: str,
-    ) -> GeneratedAnswer:
+    def generate(self, prompt: GroundedPrompt) -> GeneratedAnswer:
         """Generate an internal answer with citation IDs.
 
         Args:
-            question: The free-text question (never logged by implementations).
-            evidence: Approved, language-matched fragments selected by retrieval.
-            language: The query language tag.
+            prompt: Immutable question, language, and selected evidence.
 
         Returns:
             A :class:`GeneratedAnswer` carrying internal text and citation IDs.

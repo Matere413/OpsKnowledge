@@ -27,6 +27,24 @@ ALLOWED_OCR_QUALITY: Final[frozenset[str]] = frozenset({"low", "medium", "high"}
 
 
 @dataclass(frozen=True, slots=True)
+class EntryProvenance:
+    """Immutable parent-entry metadata exposed to query consumers.
+
+    The projection deliberately excludes parent content and the parent
+    identifier. Revision and logical-entry values are copied from the
+    validated parent payload rather than inferred from any identifier.
+    """
+
+    logical_entry_id: str
+    revision: str
+    collection: str
+    language: str
+    approval: str
+    classification: str
+    profile: str
+
+
+@dataclass(frozen=True, slots=True)
 class Fragment:
     """Immutable fragment of an approved, synthetic, development-only entry.
 
@@ -44,6 +62,7 @@ class Fragment:
 
     identifier: str
     entry_id: str
+    parent_provenance: EntryProvenance
     language: str
     provenance: str
     approval: str
@@ -54,6 +73,11 @@ class Fragment:
     source_reference: str
     quality: str
     fictitious: bool
+
+    @property
+    def entry_provenance(self) -> EntryProvenance:
+        """Return the immutable parent-entry provenance projection."""
+        return self.parent_provenance
 
     @property
     def is_ocr(self) -> bool:

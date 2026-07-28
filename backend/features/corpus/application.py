@@ -23,6 +23,7 @@ from backend.features.corpus.domain import (
     ALLOWED_OCR_QUALITY,
     ALLOWED_PROVENANCE,
     Entry,
+    EntryProvenance,
     Fragment,
 )
 
@@ -192,6 +193,15 @@ def validate_fragment_payload(
     return Fragment(
         identifier=identifier,
         entry_id=entry_id,
+        parent_provenance=EntryProvenance(
+            logical_entry_id=parent.logical_entry_id,
+            revision=parent.revision,
+            collection=parent.collection,
+            language=parent.language,
+            approval=parent.approval,
+            classification=parent.classification,
+            profile=parent.profile,
+        ),
         language=language,
         provenance=provenance,
         approval=approval,
