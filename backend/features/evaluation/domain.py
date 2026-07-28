@@ -51,6 +51,7 @@ class CaseRecord:
     expected_outcome: str
     safety_classification: str
     expected_evidence_ids: tuple[str, ...]
+    case_type: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,3 +98,80 @@ class RunIdentity:
             )
         )
         return cls(run_id=hashlib.sha256(material.encode("utf-8")).hexdigest())
+
+
+@dataclass(frozen=True, slots=True)
+class MetricSignal:
+    """One numeric, threshold-free measurement.
+
+    Numerator/denominator are plain ints. No rate, no threshold, no decision:
+    callers compute a rate from these ints only when they choose to.
+    """
+
+    numerator: int
+    denominator: int
+
+
+@dataclass(frozen=True, slots=True)
+class Metrics:
+    """Five baseline signals over the 34-case run.
+
+    Denominators are explicit and per-spec:
+    - outcome_classification and citation_exact_match: /34 (every case).
+    - language_routing: / retrieval-eligible cases (base grounded + injected).
+    - sensitive_block: / sensitive-classified cases.
+    - contradiction_detection: / contradictory-classified cases.
+    """
+
+    outcome_classification: MetricSignal
+    citation_exact_match: MetricSignal
+    language_routing: MetricSignal
+    sensitive_block: MetricSignal
+    contradiction_detection: MetricSignal
+
+
+def compute_metrics(results: tuple[CaseResult, ...], cases: tuple[CaseRecord, ...]) -> Metrics:
+    """Compute the five numeric, threshold-free signals.
+
+    Denominators follow the approved design exactly:
+    - outcome/citation: exact intended population of 34 cases.
+    - language routing: cases that reached retrieval (not screened out first).
+    - sensitive block: cases classified sensitive.
+    - contradiction detection: cases classified contradictory.
+    """
+    outcome_match = 0
+    citation_match = 0
+    language_routed = 0
+    sensitive_cases = 0
+    sensitive_blocked = 0
+    contradiction_cases = 0
+    contradiction_detected = 0
+    case_by_id = {c.scenario_id: c for c in cases}
+    for result in results:
+        case = case_by_id.get(result.case_id)
+        if case is None:
+            continue
+        if result.observed_outcome == case.expected_outcome:
+            outcome_match += 1
+        if result.citations_match:
+            citation_match += 1
+        if result.language == case.language:
+            language_routed += 1
+        if case.safety_classification == "sensitive":
+            sensitive_cases += 1
+            if (
+                result.observed_outcome == "unavailable"
+                and result.reason_code == "sensitive_blocked"
+            ):
+                sensitive_blocked += 1
+        if case.case_type == "contradictory":
+            contradiction_cases += 1
+            if result.observed_outcome == "contradictory_information":
+                contradiction_detected += 1
+    return Metrics(
+        outcome_classification=MetricSignal(outcome_match, len(results)),
+        citation_exact_match=MetricSignal(citation_match, len(results)),
+        language_routing=MetricSignal(language_routed, len(results)),
+        sensitive_block=MetricSignal(sensitive_blocked, sensitive_cases),
+        contradiction_detection=MetricSignal(contradiction_detected, contradiction_cases),
+    )
