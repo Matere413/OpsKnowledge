@@ -33,9 +33,9 @@ Chain strategy: pending
 
 ## Phase 2: Kernel Runner and Metrics
 
-- [ ] 2.1 RED: Test language isolation, mapping-as-input-only, typed ES/EN `provider-timeout` → `unavailable`, no fabricated evidence/external calls, and five numeric threshold-free formulas (~55 lines).
-- [ ] 2.2 GREEN: Create `application.py` and `adapters/kernel.py`; use development `resolve_query`, `LexicalRetriever`/`FakeProvider`, assemble 34 cases, and record language without content (~125 lines).
-- [ ] 2.3 GREEN: Complete `domain.py` denominators: outcome/citation `/34`, language/retrieval, sensitive/sensitive, contradiction/contradictory (~25 lines).
+- [x] 2.1 RED: Test language isolation, mapping-as-input-only, typed ES/EN `provider-timeout` → `unavailable`, no fabricated evidence/external calls, and five numeric threshold-free formulas (~55 lines).
+- [x] 2.2 GREEN: Create `application.py` and `adapters/kernel.py`; use development `resolve_query`, `LexicalRetriever`/`FakeProvider`, assemble 34 cases, and record language without content (~125 lines).
+- [x] 2.3 GREEN: Complete `domain.py` denominators: outcome/citation `/34`, language/retrieval, sensitive/sensitive, contradiction/contradictory (~25 lines).
 
 ## Phase 3: Safe Reports and Opt-In Wiring
 

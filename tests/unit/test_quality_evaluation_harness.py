@@ -302,3 +302,102 @@ def _scenario_path(scenario_id: str) -> str:
         if artifact.get("id") == scenario_id:
             return artifact["path"]
     raise AssertionError(f"unknown scenario id: {scenario_id}")
+
+
+# ---------------------------------------------------------------------------
+# Task 2.1 RED: language isolation, mapping-as-input-only, typed provider
+# failure → unavailable, no fabricated evidence/external calls, five numeric
+# threshold-free formulas
+# ---------------------------------------------------------------------------
+
+
+def _assemble_cases():
+    from backend.features.evaluation.application import assemble_cases
+
+    return assemble_cases(_DATASET_ROOT)
+
+
+def _kernel_adapter():
+    from backend.features.evaluation.adapters.kernel import KernelAdapter
+
+    return KernelAdapter(corpus=_load_dataset())
+
+
+@pytest.mark.parametrize(
+    ("scenario_id", "language"),
+    (
+        ("scenario.eval-01.es", "es"),
+        ("scenario.eval-01.en", "en"),
+    ),
+)
+def test_language_isolation_routes_case_to_declared_language(
+    scenario_id: str,
+    language: str,
+) -> None:
+    cases = _assemble_cases()
+    case = next(c for c in cases if c.scenario_id == scenario_id)
+    result = _kernel_adapter().execute(case)
+    assert result.language == language
+    if result.observed_outcome == "supported":
+        for citation in result.citation_ids:
+            assert f".{language}." in citation
+
+
+def test_mapping_question_is_input_only_expected_outcome_from_dataset() -> None:
+    import json
+
+    cases = _assemble_cases()
+    for case in cases:
+        if case.scenario_id.startswith("injected-"):
+            continue
+        payload = json.loads(
+            (_DATASET_ROOT / _scenario_path(case.scenario_id)).read_text(encoding="utf-8")
+        )
+        assert case.expected_outcome == payload["expected_outcome"]
+        assert case.expected_evidence_ids == tuple(payload.get("evidence", []))
+        assert "question" not in payload
+
+
+@pytest.mark.parametrize(
+    ("case_id", "language"),
+    (
+        ("injected-provider-failure-es", "es"),
+        ("injected-provider-failure-en", "en"),
+    ),
+)
+def test_injected_provider_failure_is_typed_unavailable_without_evidence(
+    case_id: str,
+    language: str,
+) -> None:
+    cases = _assemble_cases()
+    case = next(c for c in cases if c.scenario_id == case_id)
+    result = _kernel_adapter().execute(case)
+    assert result.observed_outcome == "unavailable"
+    assert result.reason_code == "provider-timeout"
+    assert result.citation_ids == ()
+    assert result.language == language
+
+
+def test_five_metrics_are_numeric_and_threshold_free() -> None:
+    from backend.features.evaluation.adapters.clock import FrozenClock
+    from backend.features.evaluation.application import run_evaluation
+    from backend.features.evaluation.domain import Metrics
+
+    clock = FrozenClock(timestamp=1_700_000_000.0, duration_seconds=0.0)
+    summary = run_evaluation(_DATASET_ROOT, clock=clock)
+    assert len(summary.results) == 34
+    metrics = summary.metrics
+    assert isinstance(metrics, Metrics)
+    signals = (
+        metrics.outcome_classification,
+        metrics.citation_exact_match,
+        metrics.language_routing,
+        metrics.sensitive_block,
+        metrics.contradiction_detection,
+    )
+    for signal in signals:
+        assert isinstance(signal.numerator, int)
+        assert isinstance(signal.denominator, int)
+        assert signal.denominator >= 0
+    assert metrics.outcome_classification.denominator == 34
+    assert metrics.citation_exact_match.denominator == 34
