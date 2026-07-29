@@ -570,6 +570,106 @@ def test_promote_rollback_on_rename_failure_restores_current(tmp_path: Path) -> 
     assert (tmp_path / "current" / "report.json").read_bytes() == prior_bytes
 
 
+def test_promote_rollback_preserves_pre_existing_previous_byte_for_byte(tmp_path: Path) -> None:
+    """When the final staged->current rename fails AFTER current was moved to
+    previous, rollback must restore prior current AND preserve a pre-existing
+    previous snapshot byte-for-byte.
+
+    This covers the "Promotion fails" scenario where previous/ already exists
+    before the promotion begins: deleting the old previous before the rename
+    transaction would lose committed evidence that must remain unchanged.
+    """
+    import backend.features.evaluation.gates.adapters.report as report_mod
+    from backend.features.evaluation.gates.adapters.report import GateReportAdapter
+
+    adapter = GateReportAdapter(base_dir=tmp_path)
+    # Two successful promotions build current=r2 and previous=r1.
+    first = _valid_report_payload("r1")
+    adapter.promote(run_id="r1", payload=first)
+    second = _valid_report_payload("r2")
+    adapter.promote(run_id="r2", payload=second)
+    prior_current_bytes = (tmp_path / "current" / "report.json").read_bytes()
+    prior_previous_bytes = (tmp_path / "previous" / "report.json").read_bytes()
+
+    third = _valid_report_payload("r3")
+    original_replace = report_mod._os_replace
+    call_count = {"n": 0}
+
+    def _failing_final_rename(src: Path, dst: Path) -> None:
+        call_count["n"] += 1
+        # First replace: current -> previous (succeeds).
+        # Second replace: staged -> current (fails).
+        if call_count["n"] == 2:
+            raise OSError("injected rename failure")
+        original_replace(src, dst)
+
+    report_mod._os_replace = _failing_final_rename
+    try:
+        with _ExpectRaise(OSError):
+            adapter.promote(run_id="r3", payload=third)
+    finally:
+        report_mod._os_replace = original_replace
+
+    # Prior committed evidence unchanged: current and previous restored.
+    assert (tmp_path / "current" / "report.json").read_bytes() == prior_current_bytes
+    assert (tmp_path / "previous" / "report.json").read_bytes() == prior_previous_bytes
+    # Staging cleaned.
+    staging_dirs = [p for p in tmp_path.iterdir() if p.name.startswith(".staging")]
+    assert staging_dirs == [], "staging must be cleaned on failure"
+
+
+def test_promote_rollback_on_initial_previous_to_backup_rename_failure(tmp_path: Path) -> None:
+    """When the FIRST rename (pre-existing previous -> backup) fails, both
+    committed snapshots must remain byte-for-byte unchanged and NO staging or
+    backup artifact may remain.
+
+    The initial previous->backup rename happens before the rename transaction
+    that swaps current/previous. Failing it must leave current and previous
+    untouched (the rename is atomic) and clean the staged directory so the next
+    run starts fresh. This is the exact cleanup gap found at ordinal 10.
+    """
+    import backend.features.evaluation.gates.adapters.report as report_mod
+    from backend.features.evaluation.gates.adapters.report import GateReportAdapter
+
+    adapter = GateReportAdapter(base_dir=tmp_path)
+    # Two successful promotions build current=r2 and previous=r1.
+    first = _valid_report_payload("r1")
+    adapter.promote(run_id="r1", payload=first)
+    second = _valid_report_payload("r2")
+    adapter.promote(run_id="r2", payload=second)
+    prior_current_bytes = (tmp_path / "current" / "report.json").read_bytes()
+    prior_previous_bytes = (tmp_path / "previous" / "report.json").read_bytes()
+
+    third = _valid_report_payload("r3")
+    original_replace = report_mod._os_replace
+    call_count = {"n": 0}
+
+    def _failing_initial_backup_rename(src: Path, dst: Path) -> None:
+        call_count["n"] += 1
+        # First replace: pre-existing previous -> backup (the cleanup gap).
+        if call_count["n"] == 1:
+            raise OSError("injected initial previous->backup rename failure")
+        original_replace(src, dst)
+
+    report_mod._os_replace = _failing_initial_backup_rename
+    try:
+        with _ExpectRaise(OSError):
+            adapter.promote(run_id="r3", payload=third)
+    finally:
+        report_mod._os_replace = original_replace
+
+    # Prior committed evidence unchanged byte-for-byte.
+    assert (tmp_path / "current" / "report.json").read_bytes() == prior_current_bytes
+    assert (tmp_path / "previous" / "report.json").read_bytes() == prior_previous_bytes
+    # No staging or backup artifacts remain.
+    leftover = [
+        p
+        for p in tmp_path.iterdir()
+        if p.name.startswith(".staging") or p.name.startswith(".previous-backup")
+    ]
+    assert leftover == [], "staging and backup artifacts must be cleaned on failure"
+
+
 def test_promote_rollback_on_first_rename_failure_leaves_current_intact(tmp_path: Path) -> None:
     """When the current->previous rename fails, current is never moved and
     remains unchanged."""

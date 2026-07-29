@@ -130,9 +130,9 @@ the focused evidence needed for this slice.
 - [x] 3.4 (2D) RED baseline-source/validation tests; GREEN `report.py:209-280`; REFACTOR immutable baseline handling. *(completed in PR 2D — entry retained for traceability)*
 - [x] 3.5 (2E) RED exit/stdout/no-network tests; GREEN `cli.py`; REFACTOR frozen `Clock` wiring and safe errors. *(completed in PR 2E — entry retained for traceability)*
 - [x] 3.6 (2F) RED Make/CI/boundary tests; GREEN Makefile target and evidence wiring; REFACTOR no `ci`/`ci-pr2a` drift. *(completed in PR 2F — entry retained for traceability)*
-- [ ] 4.1 Run all gate focused tests: `uv run --frozen pytest tests/unit/test_technical_grounding_gates_policy.py tests/unit/test_technical_grounding_gates_runner.py tests/unit/test_technical_grounding_gates_report.py tests/architecture/test_technical_grounding_gates.py -q`.
-- [ ] 4.2 Run `make eval-quality-gate`; verify repeatable safe evidence and non-zero `block`/`escalate` behavior.
-- [ ] 4.3 Run `make ci-pr2a`, then canonical `make ci`; do not alter roadmap, archive state, RDD/4R claims, or unrelated files.
+- [x] 4.1 Run all gate focused tests: `uv run --frozen pytest tests/unit/test_technical_grounding_gates_policy.py tests/unit/test_technical_grounding_gates_runner.py tests/unit/test_technical_grounding_gates_report.py tests/architecture/test_technical_grounding_gates.py -q`. *(Verified once at native attempt ordinal 9: 132 passed, exit 0.)*
+- [x] 4.2 Run `make eval-quality-gate`; verify repeatable safe evidence and non-zero `block`/`escalate` behavior. *(Verified once at native attempt ordinal 9: expected fail-closed `critical_contract_mismatch`; safe deterministic allowlisted report.)*
+- [x] 4.3 Run `make ci-pr2a`, then canonical `make ci`; do not alter roadmap, archive state, RDD/4R claims, or unrelated files. *(Verified once at native attempt ordinal 9: both exit 0.)*
 
 ## Later-work archive (recoverable, outside the candidate)
 
@@ -679,3 +679,158 @@ All archived later-slice files have now been restored. The archive remains intac
 - Runtime harness: `make eval-quality-gate` → exit 1 (expected fail-closed block: `critical_contract_mismatch`); report promoted atomically; deterministic across runs; no forbidden content
 - Changed-line count: 1,535 authored lines (365 source + 1,161 tests + 9 Makefile), excluding OpenSpec + generated evidence
 - Disposition: **RE-PLANNED** — the 1,535-line batch exceeded the 400-line budget; re-planned into sub-slices 2A–2F. Its red/green provenance and bytes are preserved as audit history and in the recoverable archive.
+
+## Focused Remediation — Native Attempt Ordinal 10 (formal-verification defect)
+
+- Objective: `formal-sdd-verification` focused remediation.
+- Failed evidence revision: `sha256:8a76b90fcd97e44286a0b4982a7782a1ad110f35875b3c8904cc1e42e9822a11` (expected revision for the formal-verification objective at ordinal 10).
+- Diagnosis: `GateReportAdapter.promote` deleted a pre-existing `previous/` snapshot (`shutil.rmtree(previous)`) BEFORE the rename transaction; a failed final `staged→current` rename could restore `current` from `previous` but could NOT restore the pre-existing `previous/` snapshot, losing committed evidence and violating spec scenario "Promotion fails" + design's journaled-rollback requirement.
+- Scope: bounded fix to ONE confirmed defect only. No refactoring of unrelated code, threshold changes, fail-closed weakening, Make/CLI boundary changes, commit, push, PR, archive, or roadmap update. Did NOT call `sdd-attempt begin`, `reset`, or `finish`.
+
+### Remediation transaction
+
+```yaml
+schema: gentle-ai.remediation-result/v1
+lineage_id: add-technical-grounding-safety-gates/formal-verification
+generation: 1
+fix_batch: native-ordinal-10
+failed_evidence_revision: sha256:8a76b90fcd97e44286a0b4982a7782a1ad110f35875b3c8904cc1e42e9822a11
+diagnosis: pre-existing previous/ snapshot deleted before rename transaction; rollback cannot restore it
+disposition: corrected
+```
+
+```yaml
+schema: gentle-ai.remediation-evidence/v1
+lineage_id: add-technical-grounding-safety-gates/formal-verification
+generation: 1
+fix_batch: native-ordinal-10
+failed_evidence_revision: sha256:8a76b90fcd97e44286a0b4982a7782a1ad110f35875b3c8904cc1e42e9822a11
+```
+
+### TDD Cycle Evidence (Strict TDD — explicit change override active)
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| Remediation | `tests/unit/test_technical_grounding_gates_report.py` (`test_promote_rollback_preserves_pre_existing_previous_byte_for_byte`) | Unit | ✅ 33/33 report baseline | ✅ Written first; genuine RED `FileNotFoundError` on `previous/report.json` | ✅ Passed after fix | ➖ Single defect path; existing triangulation covers no-previous, first-rename-fail, and success cases | ➖ None needed — minimal targeted fix |
+
+### Work Unit Evidence
+
+| Evidence | Required value |
+|---|---|
+| Focused test command and exact result | `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py -q -k 'promote_rollback_preserves_pre_existing_previous_byte_for_byte'` → 1 passed, exit 0 (was 1 failed, exit 1 before fix) |
+| Runtime harness command/scenario and exact result | N/A — adapter is a pure filesystem-transaction unit; no runtime boundary beyond the focused test (runtime gate path `make eval-quality-gate` is not re-run per instructions; verifier runs it independently) |
+| Rollback boundary | Revert `backend/features/evaluation/gates/adapters/report.py:188-219` to the prior 20-line block and remove the added test; unrelated gate/harness/CLI/Makefile code untouched |
+
+### Test execution
+
+- Safety net (before fix): `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py -q` → 33 passed, exit 0.
+- RED (new test before fix): `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py -q -k 'test_promote_rollback_preserves_pre_existing_previous_byte_for_byte'` → 1 failed, exit 1. Genuine RED: `FileNotFoundError` on `previous/report.json` — the pre-existing previous snapshot was deleted before the rename transaction and rollback could not restore it.
+- GREEN (new test after fix): same command → 1 passed, exit 0.
+- Full gate suite (proportionate static + regression): `uv run --frozen pytest tests/unit/test_technical_grounding_gates_policy.py tests/unit/test_technical_grounding_gates_runner.py tests/unit/test_technical_grounding_gates_report.py tests/architecture/test_technical_grounding_gates.py -q` → 133 passed (was 132; +1 new test), exit 0.
+
+### Static checks (proportionate; did NOT run `make ci`, `make ci-pr2a`, or `sdd-verify`)
+
+- `uv run --frozen ruff check backend/features/evaluation/gates/adapters/report.py tests/unit/test_technical_grounding_gates_report.py` → All checks passed!, exit 0.
+- `uv run --frozen ruff format --check backend/features/evaluation/gates/adapters/report.py tests/unit/test_technical_grounding_gates_report.py` → 2 files already formatted, exit 0.
+- `uv run --frozen pyright backend/features/evaluation/gates/adapters/report.py tests/unit/test_technical_grounding_gates_report.py` → 0 errors, 0 warnings, 0 informations, exit 0.
+
+### Cleanup / process evidence
+
+- Runtime-created empty `evaluation-runs/gate/previous/` (leftover from prior verification cleanup) removed; tracked `evaluation-runs/gate/current/report.json` unchanged (no diff); working tree clean of unrelated artifacts before bookkeeping.
+- No commits, PRs, merges, archive, roadmap, RDD, or 4R changes.
+- Did NOT run `sdd-verify`, `make ci-pr2a`, or `make ci` — the verifier runs those independently afterward.
+
+### Files changed
+
+| File | Action | Lines | What was done |
+|------|--------|------:|---------------|
+| `backend/features/evaluation/gates/adapters/report.py` | Modified | +18/-3 | `promote` now preserves a pre-existing `previous/` as a backup before the rename transaction and restores it on rollback; removes the backup on success. |
+| `tests/unit/test_technical_grounding_gates_report.py` | Modified | +48 | Added `test_promote_rollback_preserves_pre_existing_previous_byte_for_byte` (RED→GREEN). |
+
+### Changed-line count
+
+- Non-OpenSpec correction: 64 insertions + 3 deletions = 67 changed lines (19 production + 48 test). Well under the 200-line native budget.
+- Did NOT run `make ci`, `make ci-pr2a`, or `sdd-verify`.
+
+### Status
+
+Correction is READY for independent re-verification. The confirmed atomic-promotion rollback defect is fixed; the new focused test reproduces the exact failure path (pre-existing `previous/` + injected final-rename failure) and asserts byte-for-byte restoration of BOTH committed snapshots plus staging cleanup.
+
+## Focused Remediation — Native Attempt Ordinal 11 (formal-verification cleanup gap)
+
+- Objective: `formal-sdd-verification` focused remediation.
+- Expected/observed evidence revision: `sha256:a1c94376913baf42e009f6dfad60a1c286aecfd36d5d7942d6975f11efa08afb` (native objective active ordinal 11).
+- Supersedes failed snapshot: `sha256:8a76b90fcd97e44286a0b4982a7782a1ad110f35875b3c8904cc1e42e9822a11` (ordinal-10 verify report, FAIL; Engram history retained).
+- Diagnosis: `GateReportAdapter.promote` performed the initial `_os_replace(previous, backup_previous)` BEFORE the surrounding cleanup `try`. The ordinal-10 report's isolated failure-injection probe confirmed call 1 (the initial previous→backup rename) leaves `current_intact=true`, `previous_intact=true`, but `artifacts=[".staging-r3"]` — a remaining CRITICAL violation of Specification Scenario “Promotion fails” and the requested every-failure cleanup guarantee. Calls 2 and 3 already restored both snapshots with no staging/backup artifacts.
+- Scope: bounded fix to ONE confirmed cleanup gap only. The initial previous→backup rename is now inside a cleanup guard so a failure there removes staging and re-raises; because `os.replace` is atomic, `current/` and `previous/` are already untouched on that failure, so no snapshot rollback is needed. No other failure path (final staged→current, current→previous) or any unrelated behavior changed. Did NOT call `sdd-attempt begin`, `reset`, or `finish`.
+
+### Remediation transaction
+
+```yaml
+schema: gentle-ai.remediation-result/v1
+lineage_id: add-technical-grounding-safety-gates/formal-verification
+generation: 1
+fix_batch: native-ordinal-11
+failed_evidence_revision: sha256:8a76b90fcd97e44286a0b4982a7782a1ad110f35875b3c8904cc1e42e9822a11
+diagnosis: initial previous->backup rename outside cleanup try; injected failure leaves .staging-r3 behind
+disposition: corrected
+```
+
+```yaml
+schema: gentle-ai.remediation-evidence/v1
+lineage_id: add-technical-grounding-safety-gates/formal-verification
+generation: 1
+fix_batch: native-ordinal-11
+failed_evidence_revision: sha256:8a76b90fcd97e44286a0b4982a7782a1ad110f35875b3c8904cc1e42e9822a11
+```
+
+### TDD Cycle Evidence (Strict TDD — explicit change override active)
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| Remediation | `tests/unit/test_technical_grounding_gates_report.py` (`test_promote_rollback_on_initial_previous_to_backup_rename_failure`) | Unit | ✅ 35/35 report baseline | ✅ Written first; genuine RED `AssertionError: staging and backup artifacts must be cleaned on failure` — `.staging-r3` left behind | ✅ Passed after fix | ✅ Existing ordinal-10 test covers the final-rename failure; new test isolates the FIRST (initial previous→backup) rename; together with `_always_fail` (no pre-existing previous) the three distinct failure points are now each covered | ➖ None needed — minimal targeted fix |
+
+### Work Unit Evidence
+
+| Evidence | Required value |
+|---|---|
+| Focused test command and exact result | `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py -q -k 'test_promote_rollback_on_initial_previous_to_backup_rename_failure'` → 1 passed, exit 0 (was 1 failed, exit 1 before fix) |
+| Runtime harness command/scenario and exact result | N/A — adapter is a pure filesystem-transaction unit; no runtime boundary beyond the focused test (`make eval-quality-gate` not re-run per instructions; verifier runs it independently) |
+| Rollback boundary | Revert `backend/features/evaluation/gates/adapters/report.py:195-203` (the 7-line cleanup guard) and remove the added test; ordinal-10 rollback logic and all unrelated code untouched |
+
+### Test execution
+
+- Safety net (before fix): `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py -q` → 34 passed, exit 0.
+- RED (new test before fix): `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py -q -k 'test_promote_rollback_on_initial_previous_to_backup_rename_failure'` → 1 failed, exit 1. Genuine RED: `AssertionError: staging and backup artifacts must be cleaned on failure` — `.staging-r3` remained because the initial previous→backup rename was outside the cleanup `try`. `current/` and `previous/` were byte-for-byte intact (os.replace atomicity), matching the ordinal-10 probe.
+- GREEN (new test after fix): same command → 1 passed, exit 0.
+- Rollback/cleanup cluster (proportionate regression): `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py -q -k 'promote_rollback or promote_cleans_staging or promote_rollback_on_initial_previous_to_backup'` → 5 passed, exit 0.
+- Report safety net (proportionate regression): `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py -q` → 35 passed (was 34; +1 new test), exit 0.
+
+### Static checks (proportionate; did NOT run `make ci`, `make ci-pr2a`, or `sdd-verify`)
+
+- `uv run --frozen ruff check backend/features/evaluation/gates/adapters/report.py tests/unit/test_technical_grounding_gates_report.py` → All checks passed!, exit 0.
+- `uv run --frozen ruff format --check backend/features/evaluation/gates/adapters/report.py tests/unit/test_technical_grounding_gates_report.py` → 2 files already formatted, exit 0.
+- `uv run --frozen pyright backend/features/evaluation/gates/adapters/report.py tests/unit/test_technical_grounding_gates_report.py` → 0 errors, 0 warnings, 0 informations, exit 0.
+
+### Cleanup / process evidence
+
+- No staging/backup artifacts in the repository (`find . -name ".staging-*" -o -name ".previous-backup-*"` returns none outside `.codegraph`). `evaluation-runs/gate/previous/` (runtime-created) absent; tracked `evaluation-runs/gate/current/report.json` unchanged at `sha256:3d6bab10ea6fa6b0a332bf5a1374ea0698de6911f1fff49c99785905d7a2d12d`.
+- No commits, PRs, merges, archive, roadmap, RDD, or 4R changes.
+- Did NOT run `sdd-verify`, `make ci-pr2a`, or `make ci` — the verifier runs those independently afterward.
+
+### Files changed
+
+| File | Action | Lines | What was done |
+|------|--------|------:|---------------|
+| `backend/features/evaluation/gates/adapters/report.py` | Modified | +7 net (ordinal-11 delta) | Wrapped the initial `_os_replace(previous, backup_previous)` in a cleanup guard that removes staging on failure and re-raises; `os.replace` atomicity already leaves `current/`+`previous/` untouched. No other path changed. |
+| `tests/unit/test_technical_grounding_gates_report.py` | Modified | +52 (ordinal-11 test) | Added `test_promote_rollback_on_initial_previous_to_backup_rename_failure` (RED→GREEN): injects failure on the FIRST rename, asserts `current`/`previous` byte-for-byte unchanged and no staging/backup artifacts remain. |
+
+### Changed-line count
+
+- Non-OpenSpec ordinal-11 correction: ~7 production lines + ~52 test lines ≈ 59 changed lines. Well under the 200-line native budget.
+- The full pre-existing implementation (incl. the ordinal-10 remediation) remains and is not counted as this remediation.
+- Did NOT run `make ci`, `make ci-pr2a`, or `sdd-verify`.
+
+### Status
+
+Ordinal-11 cleanup-gap correction is READY for independent re-verification. The initial previous→backup rename now lives inside a cleanup guard; the new focused test reproduces the exact failure path (pre-existing `previous/` + injected FIRST-rename failure) and asserts byte-for-byte preservation of BOTH committed snapshots plus no staging/backup artifacts. No other failure path or behavior changed.
