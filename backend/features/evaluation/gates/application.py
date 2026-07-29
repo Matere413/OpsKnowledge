@@ -83,6 +83,14 @@ def _evaluate_critical_contracts(
     return (len(mismatches) == 0, mismatches)
 
 
+def _validate_reason_codes(results: tuple[object, ...]) -> list[str]:
+    """Validate ALL result reason codes (non-critical included); fail-closed."""
+    for result in results:
+        if getattr(result, "reason_code", None) not in ALLOWED_REASON_CODES:
+            return ["unknown_reason_code"]
+    return []
+
+
 def evaluate_gate(
     *,
     summary: RunSummary,
@@ -97,16 +105,21 @@ def evaluate_gate(
     # 1. Critical contracts (outrank floor regressions).
     critical_ok, critical_reasons = _evaluate_critical_contracts(summary.results)
 
+    # 1b. Validate ALL result reason codes (non-critical included); fail-closed.
+    unknown_reasons = _validate_reason_codes(summary.results)
+
     # 2. Floor policy.
     observed = _to_gate_metrics(summary.metrics)
     floor_decision = evaluate_floor_policy(observed=observed, baseline=baseline)
 
     # 3. Combine with precedence: critical mismatch => block (outranks all).
-    if not critical_ok:
+    if not critical_ok or unknown_reasons:
         # Block outranks escalate: if floor policy escalated, critical mismatch
         # still blocks. Aggregate critical mismatch with floor reasons.
-        combined = tuple(critical_reasons) + tuple(
-            r for r in floor_decision.reason_codes if r != "pass"
+        combined = (
+            tuple(critical_reasons)
+            + tuple(unknown_reasons)
+            + tuple(r for r in floor_decision.reason_codes if r != "pass")
         )
         # Deduplicate while preserving order.
         seen: set[str] = set()

@@ -200,7 +200,7 @@ Answer or abstention with citations
 
 **Candidate SDD changes:**
 
-- [ ] `add-opsknowledge-quality-evaluation-harness`
+- [x] `add-opsknowledge-quality-evaluation-harness` — archived 2026-07-29; delivered a reproducible Phase 2 evaluation harness with reviewed ES/EN mapping, deterministic frozen-clock runs, safe report serialization, opt-in `make eval-quality`, and a committed 34-case baseline; final post-normalization `make ci` passed with exit 0 and 498/498 tests (output SHA-256 `d59cd0b8c2fa2b565c04e7447bf2da5fa4444070fe95371ec0bd667880211ab6`).
 - [ ] `add-technical-grounding-safety-gates`
 - [ ] `add-language-and-abstention-evaluation`
 

@@ -851,6 +851,146 @@ def test_bootstrap_baseline_rejects_zero_denominator_or_negative(
 
 
 # ---------------------------------------------------------------------------
+# review-6cbe7de75e833f5a R3-001: only pass gate reports may become baseline
+# ---------------------------------------------------------------------------
+
+
+def test_r3_001_blocked_report_not_reused_as_baseline(tmp_path: Path) -> None:
+    """A blocked gate report MUST NOT be reused as baseline; fail-closed at the
+    bootstrap chokepoint so a regression cannot normalize future regressions."""
+    from backend.features.evaluation.gates.adapters.report import (
+        GateReportAdapter,
+        bootstrap_baseline,
+        serialize_gate_report,
+    )
+    from backend.features.evaluation.gates.domain import GateDecision
+
+    decision = GateDecision(status="block", reason_codes=("outcome_regression",))
+    payload = serialize_gate_report(
+        decision=decision,
+        summary=_passing_summary(),
+        baseline=_gate_metrics_passing(),
+        profile="development",
+        provider_mode="fake",
+        timestamp=1_700_000_000.0,
+        duration_seconds=0.0,
+    )
+    GateReportAdapter(base_dir=tmp_path).promote(run_id="b", payload=payload)
+    assert (tmp_path / "current").exists()
+    with _ExpectRaise(ValueError):
+        bootstrap_baseline(gate_dir=tmp_path, harness_current=tmp_path / "nope" / "current")
+
+
+def test_bootstrap_baseline_recovers_after_blocked_report(tmp_path: Path) -> None:
+    from backend.features.evaluation.gates.adapters.report import (
+        GateReportAdapter,
+        bootstrap_baseline,
+        serialize_gate_report,
+    )
+    from backend.features.evaluation.gates.domain import GateDecision
+
+    harness = tmp_path / "harness"
+    _write_harness_summary(harness)
+    payload = serialize_gate_report(
+        decision=GateDecision(status="block", reason_codes=("outcome_regression",)),
+        summary=_passing_summary(),
+        baseline=_gate_metrics_passing(),
+        profile="development",
+        provider_mode="fake",
+        timestamp=1_700_000_000.0,
+        duration_seconds=0.0,
+    )
+    GateReportAdapter(base_dir=tmp_path / "gate").promote(run_id="b", payload=payload)
+
+    baseline = bootstrap_baseline(gate_dir=tmp_path / "gate", harness_current=harness / "current")
+    assert baseline.outcome_classification.numerator == 9
+
+
+def test_bootstrap_baseline_prefers_retained_passing_report(tmp_path: Path) -> None:
+    from backend.features.evaluation.gates.adapters.report import (
+        GateReportAdapter,
+        bootstrap_baseline,
+        serialize_gate_report,
+    )
+    from backend.features.evaluation.gates.domain import GateDecision
+
+    gate_dir = tmp_path / "gate"
+    adapter = GateReportAdapter(base_dir=gate_dir)
+    passing = serialize_gate_report(
+        decision=GateDecision(status="pass", reason_codes=("pass",)),
+        summary=_passing_summary(),
+        baseline=_gate_metrics_passing(),
+        profile="development",
+        provider_mode="fake",
+        timestamp=1_700_000_000.0,
+        duration_seconds=0.0,
+    )
+    blocked = serialize_gate_report(
+        decision=GateDecision(status="block", reason_codes=("outcome_regression",)),
+        summary=_passing_summary(),
+        baseline=_gate_metrics_passing(),
+        profile="development",
+        provider_mode="fake",
+        timestamp=1_700_000_000.0,
+        duration_seconds=0.0,
+    )
+    adapter.promote(run_id="p", payload=passing)
+    adapter.promote(run_id="b", payload=blocked)
+
+    baseline = bootstrap_baseline(
+        gate_dir=gate_dir, harness_current=tmp_path / "missing" / "current"
+    )
+    assert baseline.outcome_classification.numerator == 9
+
+
+def test_repeated_non_pass_promotions_preserve_passing_baseline(tmp_path: Path) -> None:
+    from backend.features.evaluation.gates.adapters.report import (
+        GateReportAdapter,
+        bootstrap_baseline,
+        serialize_gate_report,
+    )
+    from backend.features.evaluation.gates.domain import GateDecision
+
+    adapter = GateReportAdapter(base_dir=tmp_path / "gate")
+    passing = serialize_gate_report(
+        decision=GateDecision(status="pass", reason_codes=("pass",)),
+        summary=_passing_summary(),
+        baseline=_gate_metrics_passing(),
+        profile="development",
+        provider_mode="fake",
+        timestamp=1_700_000_000.0,
+        duration_seconds=0.0,
+    )
+    blocked = serialize_gate_report(
+        decision=GateDecision(status="block", reason_codes=("outcome_regression",)),
+        summary=_run_summary(_gate_metrics_regression(), _all_critical_results_matching()),
+        baseline=_gate_metrics_passing(),
+        profile="development",
+        provider_mode="fake",
+        timestamp=1_700_000_000.0,
+        duration_seconds=0.0,
+    )
+    escalated = serialize_gate_report(
+        decision=GateDecision(status="escalate", reason_codes=("language_regression",)),
+        summary=_run_summary(_gate_metrics_escalate_only(), _all_critical_results_matching()),
+        baseline=_gate_metrics_passing(),
+        profile="development",
+        provider_mode="fake",
+        timestamp=1_700_000_000.0,
+        duration_seconds=0.0,
+    )
+    adapter.promote(run_id="p", payload=passing)
+    adapter.promote(run_id="b", payload=blocked)
+    adapter.promote(run_id="e", payload=escalated)
+
+    baseline = bootstrap_baseline(
+        gate_dir=tmp_path / "gate", harness_current=tmp_path / "missing" / "current"
+    )
+    assert baseline.outcome_classification.numerator == 9
+    assert baseline.language_routing.numerator == 34
+
+
+# ---------------------------------------------------------------------------
 # Task 3.1 RED: CLI exit codes (pass=0, block/escalate=non-zero)
 # ---------------------------------------------------------------------------
 

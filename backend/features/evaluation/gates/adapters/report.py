@@ -143,7 +143,7 @@ def _to_gate_metrics_from_summary(summary: RunSummary) -> GateMetrics:
     return _to_gate_metrics(summary.metrics)
 
 
-def _validate_report_payload(payload: bytes) -> None:
+def _validate_report_payload(payload: bytes) -> str:
     """Reject empty, malformed, or non-allowlisted payloads before any I/O."""
     if not payload:
         raise ValueError("incomplete-promotion: empty payload")
@@ -156,8 +156,10 @@ def _validate_report_payload(payload: bytes) -> None:
     if set(data.keys()) != _ALLOWED_REPORT_KEYS:
         raise ValueError("gate report payload keys do not match allowlist")
     # Minimal structural checks for safe fields.
-    if data.get("status") not in {"pass", "block", "escalate"}:
+    status = data.get("status")
+    if status not in {"pass", "block", "escalate"}:
         raise ValueError("gate report payload has invalid status")
+    return status
 
 
 # os.replace is module-level so tests can monkeypatch it to inject failures.
@@ -175,7 +177,7 @@ class GateReportAdapter:
     base_dir: Path
 
     def promote(self, run_id: str, payload: bytes) -> None:
-        _validate_report_payload(payload)
+        status = _validate_report_payload(payload)
         current = self.base_dir / "current"
         previous = self.base_dir / "previous"
         staged = self.base_dir / f".staging-{run_id}"
@@ -186,6 +188,21 @@ class GateReportAdapter:
         (staged / "report.json").write_bytes(payload)
 
         if current.exists():
+            current_status, _ = _read_gate_report(current / "report.json")
+            if status != "pass" and current_status != "pass":
+                # Keep a retained passing previous while replacing repeated
+                # non-pass evidence in current.
+                backup_current = self.base_dir / f".current-backup-{run_id}"
+                try:
+                    _os_replace(current, backup_current)
+                    _os_replace(staged, current)
+                except OSError:
+                    if backup_current.exists():
+                        _os_replace(backup_current, current)
+                    shutil.rmtree(staged, ignore_errors=True)
+                    raise
+                shutil.rmtree(backup_current, ignore_errors=True)
+                return
             # Move current -> previous first; if that fails, current is untouched
             # but staging must be cleaned so the next run starts fresh.
             # Preserve a pre-existing previous as a backup so a failed final
@@ -255,6 +272,26 @@ def _metrics_from_dict(raw: dict[str, Any]) -> GateMetrics:
     )
 
 
+def _read_gate_report(path: Path) -> tuple[str, dict[str, Any]]:
+    try:
+        data = json.loads(path.read_bytes().decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError) as exc:
+        raise ValueError("malformed gate baseline report") from exc
+    if not isinstance(data, dict):
+        raise ValueError("malformed gate baseline report: not an object")
+    status = data.get("status")
+    if status not in {"pass", "block", "escalate"}:
+        raise ValueError("malformed gate baseline report: invalid status")
+    return status, data
+
+
+def _metrics_from_gate_report(data: dict[str, Any]) -> GateMetrics:
+    metrics = data.get("observed_metrics")
+    if not isinstance(metrics, dict):
+        raise ValueError("gate baseline report missing observed_metrics")
+    return _metrics_from_dict(metrics)
+
+
 def bootstrap_baseline(*, gate_dir: Path, harness_current: Path) -> GateMetrics:
     """Resolve the immutable baseline for the current run.
 
@@ -265,16 +302,17 @@ def bootstrap_baseline(*, gate_dir: Path, harness_current: Path) -> GateMetrics:
     """
     gate_report = gate_dir / "current" / "report.json"
     if gate_report.exists():
-        try:
-            data = json.loads(gate_report.read_bytes().decode("utf-8"))
-        except (json.JSONDecodeError, UnicodeDecodeError, OSError) as exc:
-            raise ValueError("malformed gate baseline report") from exc
-        if not isinstance(data, dict):
-            raise ValueError("malformed gate baseline report: not an object")
-        metrics = data.get("observed_metrics")
-        if not isinstance(metrics, dict):
-            raise ValueError("gate baseline report missing observed_metrics")
-        return _metrics_from_dict(metrics)
+        status, data = _read_gate_report(gate_report)
+        if status == "pass":
+            return _metrics_from_gate_report(data)
+
+        # A blocked/escalated report is evidence, not a new baseline. Recover
+        # from the retained passing snapshot before falling back to the harness.
+        previous_report = gate_dir / "previous" / "report.json"
+        if previous_report.exists():
+            previous_status, previous_data = _read_gate_report(previous_report)
+            if previous_status == "pass":
+                return _metrics_from_gate_report(previous_data)
 
     harness_summary = harness_current / "summary.json"
     if not harness_summary.exists():
