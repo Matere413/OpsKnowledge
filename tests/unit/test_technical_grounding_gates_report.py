@@ -748,3 +748,184 @@ def test_bootstrap_baseline_rejects_zero_denominator_or_negative(
     )
     with _ExpectRaise(ValueError):
         bootstrap_baseline(gate_dir=tmp_path / "gate", harness_current=harness / "current")
+
+
+# ---------------------------------------------------------------------------
+# Task 3.1 RED: CLI exit codes (pass=0, block/escalate=non-zero)
+# ---------------------------------------------------------------------------
+
+
+def _wire_cli_fake_run_evaluation(monkeypatch_target: Any, summary: Any) -> None:
+    """Replace the CLI's run_evaluation reference with a stub returning summary."""
+    monkeypatch_target.run_evaluation = lambda *args, **kwargs: summary
+
+
+def test_run_gate_returns_zero_on_pass(tmp_path: Path) -> None:
+    import backend.features.evaluation.gates.cli as cli_mod
+
+    harness = tmp_path / "harness"
+    _write_harness_summary(harness)
+    summary = _passing_summary()
+    _wire_cli_fake_run_evaluation(cli_mod, summary)
+    exit_code = cli_mod.run_gate(
+        dataset_root=tmp_path / "dataset",
+        gate_dir=tmp_path / "gate",
+        harness_current=harness / "current",
+        clock=cli_mod.FrozenClock(timestamp=1_700_000_000.0, duration_seconds=0.0),
+    )
+    assert exit_code == 0
+    assert (tmp_path / "gate" / "current" / "report.json").exists()
+
+
+def test_run_gate_returns_nonzero_on_block(tmp_path: Path) -> None:
+    import backend.features.evaluation.gates.cli as cli_mod
+
+    harness = tmp_path / "harness"
+    _write_harness_summary(harness)
+    # Critical mismatch: eval-11.es has the wrong outcome.
+    results = [
+        _case_result(
+            case_id="scenario.eval-11.es",
+            observed_outcome="insufficient_information",
+            reason_code="insufficient_evidence",
+            citation_ids=(),
+        )
+        if r.case_id == "scenario.eval-11.es"
+        else r
+        for r in _all_critical_results_matching()
+    ]
+    summary = _run_summary(_gate_metrics_passing(), results)
+    _wire_cli_fake_run_evaluation(cli_mod, summary)
+    exit_code = cli_mod.run_gate(
+        dataset_root=tmp_path / "dataset",
+        gate_dir=tmp_path / "gate",
+        harness_current=harness / "current",
+        clock=cli_mod.FrozenClock(timestamp=1_700_000_000.0, duration_seconds=0.0),
+    )
+    assert exit_code != 0
+    report = json.loads((tmp_path / "gate" / "current" / "report.json").read_bytes())
+    assert report["status"] == "block"
+    assert "critical_contract_mismatch" in report["reason_codes"]
+
+
+def test_run_gate_returns_nonzero_on_escalate(tmp_path: Path) -> None:
+    import backend.features.evaluation.gates.cli as cli_mod
+
+    harness = tmp_path / "harness"
+    _write_harness_summary(harness)
+    # Language regression (escalate) with all critical contracts passing and
+    # block-signals at floor (so the only regression is the escalate one).
+    escalate_metrics = _gate_metrics_escalate_only()  # language 33/34
+    summary = _run_summary(escalate_metrics, _all_critical_results_matching())
+    _wire_cli_fake_run_evaluation(cli_mod, summary)
+    exit_code = cli_mod.run_gate(
+        dataset_root=tmp_path / "dataset",
+        gate_dir=tmp_path / "gate",
+        harness_current=harness / "current",
+        clock=cli_mod.FrozenClock(timestamp=1_700_000_000.0, duration_seconds=0.0),
+    )
+    assert exit_code != 0
+    report = json.loads((tmp_path / "gate" / "current" / "report.json").read_bytes())
+    assert report["status"] == "escalate"
+    assert "language_regression" in report["reason_codes"]
+
+
+def test_run_gate_stdout_contains_only_safe_fields(tmp_path: Path, capsys: Any) -> None:
+    import backend.features.evaluation.gates.cli as cli_mod
+
+    harness = tmp_path / "harness"
+    _write_harness_summary(harness)
+    summary = _passing_summary()
+    _wire_cli_fake_run_evaluation(cli_mod, summary)
+    cli_mod.run_gate(
+        dataset_root=tmp_path / "dataset",
+        gate_dir=tmp_path / "gate",
+        harness_current=harness / "current",
+        clock=cli_mod.FrozenClock(timestamp=1_700_000_000.0, duration_seconds=0.0),
+    )
+    out = capsys.readouterr().out
+    for token in FORBIDDEN_CONTENT_TOKENS:
+        assert token not in out, f"forbidden token '{token}' in stdout"
+    assert "pass" in out
+
+
+# ---------------------------------------------------------------------------
+# Task 3.1 RED: no-dependency imports in gate adapters and CLI
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "module_path",
+    (
+        "backend.features.evaluation.gates.adapters.report",
+        "backend.features.evaluation.gates.cli",
+    ),
+)
+def test_gate_report_and_cli_import_no_forbidden_modules(module_path: str) -> None:
+    import importlib
+
+    mod = importlib.import_module(module_path)
+    forbidden = {
+        "http",
+        "requests",
+        "aiohttp",
+        "httpx",
+        "socket",
+        "asyncio",
+        "langchain",
+        "llama_index",
+        "redis",
+        "kubernetes",
+        "subprocess",
+    }
+    for forbidden_mod in forbidden:
+        assert forbidden_mod not in vars(mod), f"{module_path} imports forbidden {forbidden_mod}"
+
+
+def test_gate_cli_uses_no_subprocess_or_network() -> None:
+    """The gate CLI MUST NOT import subprocess or network modules."""
+    import ast
+    import importlib
+
+    mod = importlib.import_module("backend.features.evaluation.gates.cli")
+    assert mod.__file__ is not None
+    tree = ast.parse(Path(mod.__file__).read_text(encoding="utf-8"))
+    forbidden = {"subprocess", "socket", "http", "requests", "aiohttp", "httpx", "asyncio"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                assert alias.name.split(".")[0] not in forbidden
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            assert node.module.split(".")[0] not in forbidden
+
+
+# ---------------------------------------------------------------------------
+# Task 3.1 RED: deterministic frozen-clock report
+# ---------------------------------------------------------------------------
+
+
+def test_run_gate_produces_deterministic_report_across_runs(tmp_path: Path) -> None:
+    import backend.features.evaluation.gates.cli as cli_mod
+
+    harness = tmp_path / "harness"
+    _write_harness_summary(harness)
+    summary = _passing_summary()
+    _wire_cli_fake_run_evaluation(cli_mod, summary)
+    clock = cli_mod.FrozenClock(timestamp=1_700_000_000.0, duration_seconds=0.0)
+    cli_mod.run_gate(
+        dataset_root=tmp_path / "dataset",
+        gate_dir=tmp_path / "gate",
+        harness_current=harness / "current",
+        clock=clock,
+    )
+    first = (tmp_path / "gate" / "current" / "report.json").read_bytes()
+    # Second run into a fresh gate dir with identical inputs.
+    _wire_cli_fake_run_evaluation(cli_mod, summary)
+    cli_mod.run_gate(
+        dataset_root=tmp_path / "dataset",
+        gate_dir=tmp_path / "gate2",
+        harness_current=harness / "current",
+        clock=clock,
+    )
+    second = (tmp_path / "gate2" / "current" / "report.json").read_bytes()
+    assert first == second
