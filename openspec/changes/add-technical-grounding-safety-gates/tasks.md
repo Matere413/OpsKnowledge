@@ -28,7 +28,7 @@ Chain strategy: stacked-to-main
 
 ## Phase 2: Re-divided former Slice 2 (Strict TDD; stack in order)
 - [x] 3.1 (2A) RED core allowlist/status/metadata tests; GREEN `report.py:1-143`; REFACTOR canonical safe JSON.
-- [ ] 3.2 (2B) RED critical-observation/content-safety tests; GREEN verifies 2A’s serializer (no duplicated production hunk); REFACTOR coverage.
+- [x] 3.2 (2B) RED critical-observation/content-safety tests; GREEN verifies 2A’s serializer (no duplicated production hunk); REFACTOR coverage.
 - [ ] 3.3 (2C) RED staging/atomic/rollback tests; GREEN `report.py:146-207`; REFACTOR cleanup and prior-byte preservation.
 - [ ] 3.4 (2D) RED baseline-source/validation tests; GREEN `report.py:209-280`; REFACTOR immutable baseline handling.
 - [ ] 3.5 (2E) RED exit/stdout/no-network tests; GREEN `cli.py`; REFACTOR frozen `Clock` wiring and safe errors.

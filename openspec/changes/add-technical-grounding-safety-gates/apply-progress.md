@@ -9,13 +9,14 @@ Review budget: 400 lines excluding OpenSpec
 Native attempt: ordinal 1, expected revision `sha256:357052e1db0db53f986f270e704fb1d9b6aba572140e5c8699ca51b63e33c628`
 Native attempt: ordinal 2, expected revision `sha256:9b8fd8453b8a2158e0dfac7f7c4ea7ddc173d04d5520c8cba82ef0c14ffd1dc6`
 Native attempt: ordinal 3, expected revision `sha256:feb83a3c3d0136b35965f5cf461464e5dea5fe94913e311ac5c410a011569b9c`
+Native attempt: ordinal 4, expected revision `sha256:82a3662fd5a6fb51b7efe5289e853d5cc85bdd4e098fb9da6411b60e3ba1281f`
 
 ## Slice Boundary
 
-This apply progress merges three autonomous stacked-to-main batches. The
+This apply progress merges four autonomous stacked-to-main batches. The
 former slice-2 was re-planned into six sub-slices (2A–2F); this file records
 the original full slice-2 provenance (kept as audit history) AND the isolated
-PR 2A candidate that replaced it.
+PR 2A and PR 2B candidates that replaced it.
 
 ### Slice 1 — `slice-1-policy-runner` (MERGED in `master` at `b6aa528`)
 - Phase 1: Policy and Contracts (tasks 1.1–1.3) — Unit 1
@@ -28,10 +29,17 @@ exceeded the 400-line review budget and was re-planned into sub-slices 2A–2F.
 Its red/green TDD provenance is preserved below as audit history. Its bytes
 were preserved recoverably outside the candidate (see "Later-work archive").
 
-### PR 2A — `slice-2a-report-core` (THIS BATCH)
+### PR 2A — `slice-2a-report-core` (MERGED in `master` at `3b7eacd`)
 - Phase 2 task 3.1 only: core allowlisted gate report serializer
 - `report.py` serializer core + the focused tests that prove it
 - Later sub-slices 2B–2F are NOT in this candidate; their bytes are archived
+
+### PR 2B — `slice-2b-critical-content-safety` (THIS BATCH)
+- Phase 2 task 3.2 only: critical-observation and forbidden-content safety tests
+- Test-only slice: restores report tests `:253-440` (6 tests) from the archive
+- GREEN verifies 2A’s serializer already emits critical observations and
+  forbids content tokens — NO duplicated production hunk
+- Later sub-slices 2C–2F are NOT in this candidate; their bytes stay archived
 
 Phase 4 (Integration Verification, tasks 4.1–4.3) is a **later slice** and was
 NOT implemented. This batch did not perform final Phase 4 verification beyond
@@ -52,15 +60,20 @@ the focused evidence needed for this slice.
 - [x] 3.2 GREEN (former): `adapters/report.py` and `cli.py`; modify only `Makefile` with `.PHONY`/`eval-quality-gate`; bootstrap validated baseline, journal promotion, safe errors, `evaluation-runs/gate/current` evidence.
 - [x] 3.3 REFACTOR/verify (former): preserve no subprocess/network/persistence/content logging, inject `FrozenClock`, run Unit 3 focused command.
 
-### PR 2A (this batch — isolated from the former slice 2)
+### PR 2A (merged in master at 3b7eacd — isolated from the former slice 2)
 - [x] 3.1 (2A) RED core allowlist/status/metadata tests; GREEN `report.py:1-143`; REFACTOR canonical safe JSON.
   - RED provenance preserved from the former slice-2: the 3 `serialize_gate_report` tests were written first against a missing module and failed (module missing).
   - GREEN provenance preserved: `serialize_gate_report` + helpers implemented; the 3 focused tests passed.
   - REFACTOR: removed later-slice imports (`os`, `shutil`, `dataclass`, `Path`) and later-slice exports from `__all__`; removed unused `import pytest` from the test file; trailing newline added; `ruff format` applied (1 file reformatted). Serializer core remains byte-stable (sort_keys canonical JSON, exact allowlist assertion).
 
+### PR 2B (this batch — isolated slice-2b-critical-content-safety)
+- [x] 3.2 (2B) RED critical-observation/content-safety tests; GREEN verifies 2A's serializer (no duplicated production hunk); REFACTOR coverage.
+  - RED provenance preserved from the former slice-2: the 6 critical-observation/forbidden-content/citation-ids tests were written first against a missing serializer and failed (module missing) in the original full slice-2 TDD cycle.
+  - GREEN: the restored 6 tests pass against 2A's already-merged serializer (`report.py:1-143` unchanged). No production hunk was duplicated or added — this is a test-only slice proving the 2A serializer already emits the allowlisted critical observations and forbids content tokens at the serializer boundary.
+  - REFACTOR: restored bytes from the verified archive were byte-faithful; the only adjustment was trimming one trailing blank line (W292) introduced by the archive block boundary; `ruff format --check` clean.
+
 ## Remaining Tasks (later slices)
 
-- [ ] 3.2 (2B) RED critical-observation/content-safety tests; GREEN verifies 2A's serializer (no duplicated production hunk); REFACTOR coverage.
 - [ ] 3.3 (2C) RED staging/atomic/rollback tests; GREEN `report.py:146-207`; REFACTOR cleanup and prior-byte preservation.
 - [ ] 3.4 (2D) RED baseline-source/validation tests; GREEN `report.py:209-280`; REFACTOR immutable baseline handling.
 - [ ] 3.5 (2E) RED exit/stdout/no-network tests; GREEN `cli.py`; REFACTOR frozen `Clock` wiring and safe errors.
@@ -105,16 +118,23 @@ rewritten.
 | `tests/unit/test_technical_grounding_gates_policy.py` | Created | 520 | 42 tests. |
 | `tests/unit/test_technical_grounding_gates_runner.py` | Created | 427 | 36 tests. |
 
-### PR 2A (this batch — isolated candidate)
+### PR 2A (merged in master at 3b7eacd — isolated candidate)
 
 | File | Action | Lines | What Was Done |
 |------|--------|------:|---------------|
 | `backend/features/evaluation/gates/adapters/report.py` | Created (truncated from former 280) | 141 | Serializer core only: `serialize_gate_report` + helpers (`_signal_dict`, `_metrics_dict`, `_floors_dict`, `_critical_observations`, `_to_gate_metrics_from_summary`), allowlist constants, `__all__` exporting only `GATE_VERSION`/`SCHEMA_VERSION`/`serialize_gate_report`. Removed later-slice imports (`os`, `shutil`, `dataclass`, `Path`) and later-slice code (promotion, baseline, validation). |
 | `tests/unit/test_technical_grounding_gates_report.py` | Created (truncated from former 930) | 247 | 3 focused `serialize_gate_report` tests + shared scaffolding (helpers, allowlist constants, `_ExpectRaise`, `_raises`, metric builders, summary builders). Removed later-slice tests (critical-obs/forbidden/citation, promotion, rollback, baseline, CLI, imports, deterministic). Removed unused `import pytest` (F401). |
 
+### PR 2B (this batch — isolated slice-2b-critical-content-safety)
+
+| File | Action | Lines | What Was Done |
+|------|--------|------:|---------------|
+| `tests/unit/test_technical_grounding_gates_report.py` | Modified (appended 2B block) | 247→436 (+189) | Restored byte-faithful critical-observation and forbidden-content safety tests from the verified archive (archive lines 253-440). 6 tests: `records_five_signals_in_baseline_and_observed`, `records_reviewed_floors`, `critical_observations_are_allowlisted_and_selected`, `excludes_non_critical_results`, `contains_no_forbidden_content_tokens`, `citation_ids_only_not_content`. One trailing blank line trimmed (W292). No production code changed. |
+
 **Authored line totals (excluding OpenSpec + generated evidence):**
 - PR 2A: 388 total lines (report.py 141 + test 247); 317 non-blank authored lines.
-- Under the 400-line hard maintainer threshold. No `size:exception` requested or assumed.
+- PR 2B: 190 inserted lines (189 test block + 1 separator blank); 169 non-blank authored lines.
+- PR 2B is under the 400-line hard maintainer threshold. No `size:exception` requested or assumed.
 
 ### Removed from the active candidate (archived, not lost)
 
@@ -149,16 +169,23 @@ rewritten.
 | 3.2 | (same) | Unit/Arch | ✅ 92/92 | (covered by 3.1 RED) | ✅ 54/54 passed (33 report + 21 arch) | ✅ baseline bootstrap from harness vs gate snapshot; deterministic report across runs | ✅ `_PROJECT_ROOT parents[4]` fix (gate cli is one dir deeper than harness cli) |
 | 3.3 | (same) | Unit/Arch | ✅ 92/92 | (covered by 3.1 RED) | ✅ 54/54 passed | ➖ | ✅ ruff/pyright/focused-test-guard/dependency-boundaries clean; runtime harness `make eval-quality-gate` confirms fail-closed block |
 
-### PR 2A (this batch — isolated slice-2a-report-core)
+### PR 2A (merged in master at 3b7eacd — isolated slice-2a-report-core)
 
 | Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
 |------|-----------|-------|------------|-----|-------|-------------|----------|
 | 3.1 (2A) | `tests/unit/test_technical_grounding_gates_report.py` | Unit | ✅ 92/92 (78 gate slice-1 + 14 harness arch) | ✅ Preserved from former slice-2: the 3 `serialize_gate_report` tests were RED first (module missing) | ✅ 3/3 passed after isolation (serializer core retained; later-slice code removed) | ✅ 3 cases: exact allowlist keys, decision status+reasons, run_id/profile/provider_mode/timestamp/duration — each exercises a distinct serializer field path | ✅ Removed unused `import pytest` (F401); added trailing newline (W292); `ruff format` applied (1 file reformatted); removed later-slice imports/exports from `report.py` `__all__`; serializer byte-stable canonical JSON preserved |
 
+### PR 2B (this batch — isolated slice-2b-critical-content-safety)
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| 3.2 (2B) | `tests/unit/test_technical_grounding_gates_report.py` | Unit | ✅ 92/92 (78 gate slice-1 + 14 harness arch) | ✅ Preserved from former slice-2: the 6 critical-observation/forbidden-content/citation-ids tests were RED first (module missing) | ✅ 9/9 passed (3 from 2A + 6 restored 2B) against 2A's already-merged serializer — no production hunk added | ✅ 6 cases: five-signal baseline/observed, reviewed floors, allowlisted+selected critical observations, non-critical exclusion, forbidden-token absence, citation-IDs-not-content — each proves a distinct safety property at the serializer boundary | ✅ Trailing blank line trimmed (W292); `ruff format --check` clean; byte-faithful restoration from verified archive |
+
 ### Test Summary (combined)
-- **Total tests written across all batches**: 132 (42 policy + 36 runner + 33 report-former + 21 arch-former)
+- **Total tests written across all batches**: 138 (42 policy + 36 runner + 33 report-former + 21 arch-former + 6 report-2B)
 - **PR 2A focused tests in active candidate**: 3 (serialize_gate_report core)
-- **PR 2A focused tests passing**: 3
+- **PR 2B focused tests restored**: 6 (critical-observations/forbidden/citation-ids safety proof)
+- **PR 2A+2B focused tests passing**: 9
 - **Layers used**: Unit
 - **Approval tests** (refactoring): None — no refactoring of existing code
 - **Pure functions created**: 5 retained in PR 2A (`serialize_gate_report`, `_signal_dict`, `_metrics_dict`, `_floors_dict`, `_critical_observations`); `_to_gate_metrics_from_summary` reuses the slice-1 `_to_gate_metrics`
@@ -173,13 +200,21 @@ rewritten.
 | Runtime harness command/scenario and exact result | N/A — CLI wiring and `make eval-quality-gate` belong to the later report/CLI slice (Phase 3); no runtime boundary exists for this pure-policy/runner slice |
 | Rollback boundary | Remove `backend/features/evaluation/gates/{__init__,domain,policy,ports,application.py}` and `adapters/__init__.py`, plus `tests/unit/test_technical_grounding_gates_{policy,runner}.py`. No harness, kernel, dataset, Makefile, manifest, or lockfile changes to revert. |
 
-### PR 2A (this batch)
+### PR 2A (merged)
 
 | Evidence | Required value |
 |---|---|
 | Focused test command and exact result | `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py -q -k serialize_gate_report` → 3 passed in 0.03s, exit 0 |
 | Runtime harness command/scenario and exact result | N/A — pure serializer slice; `make eval-quality-gate`, CLI, promotion, and baseline bootstrap belong to later stacked slices (2C–2F). No runtime boundary exists for PR 2A. |
 | Rollback boundary | Remove `backend/features/evaluation/gates/adapters/report.py` and `tests/unit/test_technical_grounding_gates_report.py`. No Makefile, CLI, harness, kernel, dataset, manifest, lockfile, or dependency changes to revert (Makefile diff reverted to HEAD; later-slice files removed from candidate and archived). |
+
+### PR 2B (this batch)
+
+| Evidence | Required value |
+|---|---|
+| Focused test command and exact result | `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py -q -k 'critical_observations or forbidden or citation_ids'` → 3 passed, 6 deselected in 0.03s, exit 0. Full file: `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py -q` → 9 passed in 0.02s, exit 0. |
+| Runtime harness command/scenario and exact result | N/A — test-only safety-proof slice; no runtime boundary exists. The restored tests prove critical observations and forbidden content absence at the serializer boundary without adding production behavior. |
+| Rollback boundary | Revert the 189-line test append to `tests/unit/test_technical_grounding_gates_report.py` (back to 247 lines). No production code, Makefile, CLI, harness, kernel, dataset, manifest, lockfile, or dependency changes to revert. |
 
 ### Former Slice 2 (audit history)
 
@@ -201,9 +236,12 @@ rewritten.
 5. **`_PROJECT_ROOT = parents[4]`**: The gate `cli.py` lives one directory deeper (`gates/cli.py`) than the harness `cli.py` (`evaluation/cli.py`), so `parents[4]` resolves to the project root instead of `parents[3]`. This is correct path arithmetic, not a deviation.
 6. **`_os_replace` module-level indirection**: `os.replace` is referenced via a module-level `_os_replace` alias so tests can monkeypatch it to inject rename failures. This enables the rollback tests without subprocess or mocking frameworks. Consistent with the design's "inject write/rename failures" testing strategy.
 
-### PR 2A (this batch)
+### PR 2A (merged)
 7. **`__all__` narrowed to serializer exports**: The former `report.py` exported `GateReportAdapter` and `bootstrap_baseline`, which belong to later slices (2C, 2D). PR 2A's `__all__` exports only `GATE_VERSION`, `SCHEMA_VERSION`, and `serialize_gate_report`. Later slices will re-add the promotion/baseline exports when their code lands in the same module. Faithful to the re-planned boundary, not a design deviation.
 8. **Unused scaffolding retained in the test file**: `_ExpectRaise`, `_raises`, `_gate_metrics_regression`, `_gate_metrics_escalate_only`, `_BAD_*`, `FORBIDDEN_CONTENT_TOKENS`, `ALLOWED_OBSERVATION_KEYS`, `_write_harness_summary`-adjacent constants are defined but not called by the 3 PR 2A tests. They are kept because the revised tasks artifact assigns them to the PR 2A test boundary (`:1-252`) and later slices (2B–2E) reuse them. Module-level unused functions/constants are not ruff errors (only unused imports are F401). The single unused import (`pytest`) was removed.
+
+### PR 2B (this batch)
+9. **Byte-faithful restoration with one trailing-blank trim**: The 2B block was restored verbatim from the verified archive (byte-identical to archive lines 253-440). The archive block ended with a blank line that became a trailing blank at EOF (W292); ruff flagged it. The only adjustment was trimming that single trailing `\n` — no test logic or content was altered. Faithful to the restoration protocol, not a deviation.
 
 ## Issues Found
 
@@ -216,12 +254,15 @@ rewritten.
 4. **Initial gate baseline blocks fail-closed**: `make eval-quality-gate` exits non-zero with `critical_contract_mismatch` because the development fake kernel does not satisfy eval-11/12/13 critical contracts. This is the EXPECTED release block — the gate is a release contract that blocks when the kernel doesn't meet critical contracts. The baseline is recorded as a fail-closed gate result, not a weakening of policy. Distinguished from implementation failure: all 132 focused tests pass, static checks are clean, and the runtime harness produces the correct safe report with the correct block decision.
 5. **Runtime-generated `evaluation-runs/previous/`**: Running `make eval-quality` (harness) for comparison created a harness `previous/`. Cleaned up — not part of this slice's deliverable. The gate `evaluation-runs/gate/current/` is the intended initial baseline.
 
-### PR 2A (this batch)
+### PR 2A (merged)
 6. **None.** The serializer core isolates cleanly. The only lint fix required was removing the unused `import pytest` (the 3 focused tests use bare `assert`, no `pytest.mark`) and adding a trailing newline.
+
+### PR 2B (this batch)
+7. **None.** The 2B block is a byte-faithful restoration of already-written, already-RED-proven tests. The only adjustment was trimming one trailing blank line (W292) introduced by the archive block boundary. All 6 restored tests pass against the unchanged 2A serializer, confirming the serializer already emits allowlisted critical observations and forbids content tokens.
 
 ## Cleanup / Process Evidence
 
-### PR 2A (this batch)
+### PR 2A (merged)
 - No commits created, no pushes, no PR opened (per instructions).
 - No `make ci` or `ci-pr2a` changes (verified: `Makefile` reverted to HEAD; `git diff -- Makefile` empty).
 - No new dependencies (verified: `git diff -- pyproject.toml uv.lock` empty).
@@ -230,6 +271,17 @@ rewritten.
 - All new files pass `ruff check`, `ruff format --check`, `pyright`, `check_focused_tests.py`, and `check_dependency_boundaries.py`.
 - Existing gate + harness tests (92) still pass — safety net confirmed.
 - Later-slice work preserved recoverably under the pre-approved external temp root; no later work lost or silently rewritten.
+
+### PR 2B (this batch)
+- No commits created, no pushes, no PR opened (per instructions).
+- No `make ci` or `ci-pr2a` changes (verified: `git diff -- Makefile` empty; only the test file changed).
+- No new dependencies (verified: `git diff -- pyproject.toml uv.lock` empty).
+- No production code changes (verified: `git diff --stat HEAD` shows only the test file, +189 insertions, 0 deletions).
+- No harness/kernel/dataset/provider/embedding/database changes (verified: `git diff` on harness files empty).
+- No RDD/4R, no review started, no approval claimed, no roadmap update, no archive.
+- The modified test file passes `ruff check`, `ruff format --check`, `pyright`, `check_focused_tests.py`, and `check_dependency_boundaries.py`.
+- Existing gate + harness tests (92) still pass — safety net confirmed.
+- Archive revalidated: all 6 archive file hashes match the MANIFEST; no later work lost or silently rewritten.
 
 ### Former Slice 2 (audit history)
 - No commits created, no pushes, no PR opened (per instructions).
@@ -243,7 +295,7 @@ rewritten.
 
 ## Native Attempt Evidence
 
-### PR 2A (this batch)
+### PR 2A (merged)
 - Attempt ordinal: 3
 - Expected current revision: `sha256:feb83a3c3d0136b35965f5cf461464e5dea5fe94913e311ac5c410a011569b9c`
 - Work unit: `slice-2a-report-core`
@@ -262,6 +314,27 @@ rewritten.
 - Changed-line count: 388 authored lines (report.py 141 + test 247), excluding OpenSpec + generated evidence. Under the 400-line hard maintainer threshold; no `size:exception` requested or assumed.
 - Content revision hash (PR 2A non-OpenSpec authored content): `sha256:599b0dcab89a19e098dc79300d010474813537e36b11fb1644a11b28b19141bc`
 - Disposition: **PASSED** — 3 focused serializer tests green; static checks clean; safety net (92) green; active candidate contains only PR 2A + OpenSpec bookkeeping; later-slice work archived recoverably; line count 388 ≤ 400.
+
+### PR 2B (this batch)
+- Attempt ordinal: 4
+- Expected current revision: `sha256:82a3662fd5a6fb51b7efe5289e853d5cc85bdd4e098fb9da6411b60e3ba1281f`
+- Work unit: `slice-2b-critical-content-safety`
+- Did NOT call `sdd-attempt begin`, `reset`, or `finish`.
+- Focused test commands and outcomes:
+  - `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py -q -k 'critical_observations or forbidden or citation_ids'` → 3 passed, 6 deselected in 0.03s, exit 0
+  - `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py -q` → 9 passed in 0.02s, exit 0
+- Static checks:
+  - `uv run --frozen ruff check tests/unit/test_technical_grounding_gates_report.py` → All checks passed, exit 0
+  - `uv run --frozen ruff format --check tests/unit/test_technical_grounding_gates_report.py` → 1 file already formatted, exit 0
+  - `uv run --frozen pyright tests/unit/test_technical_grounding_gates_report.py` → 0 errors, 0 warnings, 0 informations, exit 0
+  - `uv run --frozen python scripts/ci/check_focused_tests.py .` → no findings, exit 0
+  - `uv run --frozen python scripts/ci/check_dependency_boundaries.py .` → no findings, exit 0
+- Safety net: `uv run --frozen pytest tests/unit/test_technical_grounding_gates_policy.py tests/unit/test_technical_grounding_gates_runner.py tests/architecture/test_quality_evaluation_harness.py -q` → 92 passed in 0.12s, exit 0
+- Runtime harness: N/A — test-only safety-proof slice; no runtime boundary exists.
+- Archive revalidation: all 6 archive file SHA256 hashes match the MANIFEST (`report.py.full`, `cli.py.full`, `test_technical_grounding_gates_report.py.full`, `test_technical_grounding_gates.py.full`, `gate-current-report.json`, `former-slice-2-tracked.diff`). Archive bytes intact.
+- Changed-line count: 190 authored lines (189 test block insertions + 1 separator blank), excluding OpenSpec + generated evidence. Under the 400-line hard maintainer threshold; no `size:exception` requested or assumed.
+- Production code: unchanged (verified: `git diff --stat HEAD` shows only the test file; 0 production files modified).
+- Disposition: **PASSED** — 6 restored safety tests green against 2A's unchanged serializer; static checks clean; safety net (92) green; archive integrity revalidated; line count 190 ≤ 400; no production hunk duplicated.
 
 ### Former Slice 2 (audit history)
 - Attempt ordinal: 2

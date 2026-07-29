@@ -245,3 +245,192 @@ def test_serialize_gate_report_records_run_id_profile_provider_mode() -> None:
     assert data["provider_mode"] == "fake"
     assert data["timestamp"] == 1_700_000_000.0
     assert data["duration_seconds"] == 0.0
+
+
+def test_serialize_gate_report_records_five_signals_in_baseline_and_observed() -> None:
+    from backend.features.evaluation.gates.adapters.report import serialize_gate_report
+    from backend.features.evaluation.gates.domain import GateDecision, GateMetrics, GateSignal
+
+    baseline = GateMetrics(
+        language_routing=GateSignal(34, 34),
+        sensitive_block=GateSignal(2, 2),
+        outcome_classification=GateSignal(9, 34),
+        citation_exact_match=GateSignal(10, 34),
+        contradiction_detection=GateSignal(0, 4),
+    )
+    observed = _gate_metrics_regression()
+    decision = GateDecision(status="block", reason_codes=("outcome_regression",))
+    summary = _run_summary(observed, _all_critical_results_matching())
+    payload = serialize_gate_report(
+        decision=decision,
+        summary=summary,
+        baseline=baseline,
+        profile="development",
+        provider_mode="fake",
+        timestamp=1_700_000_000.0,
+        duration_seconds=0.0,
+    )
+    data = json.loads(payload.decode("utf-8"))
+    for section in ("baseline_metrics", "observed_metrics"):
+        assert set(data[section].keys()) == {
+            "language_routing",
+            "sensitive_block",
+            "outcome_classification",
+            "citation_exact_match",
+            "contradiction_detection",
+        }
+        assert data["baseline_metrics"]["outcome_classification"] == {
+            "numerator": 9,
+            "denominator": 34,
+        }
+        assert data["observed_metrics"]["outcome_classification"] == {
+            "numerator": 8,
+            "denominator": 34,
+        }
+
+
+def test_serialize_gate_report_records_reviewed_floors() -> None:
+    from backend.features.evaluation.gates.adapters.report import serialize_gate_report
+    from backend.features.evaluation.gates.domain import GateDecision
+
+    decision = GateDecision(status="pass", reason_codes=("pass",))
+    summary = _passing_summary()
+    payload = serialize_gate_report(
+        decision=decision,
+        summary=summary,
+        baseline=_gate_metrics_passing(),
+        profile="development",
+        provider_mode="fake",
+        timestamp=1_700_000_000.0,
+        duration_seconds=0.0,
+    )
+    data = json.loads(payload.decode("utf-8"))
+    floors = data["floors"]
+    assert floors["language_routing"] == {
+        "numerator": 34,
+        "denominator": 34,
+        "regression": "escalate",
+    }
+    assert floors["outcome_classification"] == {
+        "numerator": 9,
+        "denominator": 34,
+        "regression": "block",
+    }
+    assert floors["contradiction_detection"] == {
+        "numerator": 0,
+        "denominator": 4,
+        "regression": "block",
+    }
+
+
+def test_serialize_gate_report_critical_observations_are_allowlisted_and_selected() -> None:
+    from backend.features.evaluation.gates.adapters.report import serialize_gate_report
+    from backend.features.evaluation.gates.domain import CRITICAL_EXPECTATIONS, GateDecision
+
+    decision = GateDecision(status="pass", reason_codes=("pass",))
+    summary = _passing_summary()
+    payload = serialize_gate_report(
+        decision=decision,
+        summary=summary,
+        baseline=_gate_metrics_passing(),
+        profile="development",
+        provider_mode="fake",
+        timestamp=1_700_000_000.0,
+        duration_seconds=0.0,
+    )
+    data = json.loads(payload.decode("utf-8"))
+    observations = data["critical_observations"]
+    expected_ids = {exp.case_id for exp in CRITICAL_EXPECTATIONS}
+    assert {obs["case_id"] for obs in observations} == expected_ids
+    for obs in observations:
+        assert set(obs.keys()) == ALLOWED_OBSERVATION_KEYS
+        assert obs["citation_ids"] == []
+
+
+def test_serialize_gate_report_excludes_non_critical_results() -> None:
+    from backend.features.evaluation.gates.adapters.report import serialize_gate_report
+    from backend.features.evaluation.gates.domain import GateDecision
+
+    decision = GateDecision(status="pass", reason_codes=("pass",))
+    results = _all_critical_results_matching() + [
+        _case_result(
+            case_id="scenario.eval-01.es",
+            observed_outcome="supported",
+            reason_code="none",
+            citation_ids=("fragment.leak-001",),
+        )
+    ]
+    summary = _run_summary(_gate_metrics_passing(), results)
+    payload = serialize_gate_report(
+        decision=decision,
+        summary=summary,
+        baseline=_gate_metrics_passing(),
+        profile="development",
+        provider_mode="fake",
+        timestamp=1_700_000_000.0,
+        duration_seconds=0.0,
+    )
+    data = json.loads(payload.decode("utf-8"))
+    ids = {obs["case_id"] for obs in data["critical_observations"]}
+    assert "scenario.eval-01.es" not in ids
+
+
+# ---------------------------------------------------------------------------
+# Task 3.1 RED: forbidden content absence
+# ---------------------------------------------------------------------------
+
+
+def test_serialize_gate_report_contains_no_forbidden_content_tokens() -> None:
+    from backend.features.evaluation.gates.adapters.report import serialize_gate_report
+    from backend.features.evaluation.gates.domain import GateDecision
+
+    decision = GateDecision(status="pass", reason_codes=("pass",))
+    summary = _passing_summary()
+    payload = serialize_gate_report(
+        decision=decision,
+        summary=summary,
+        baseline=_gate_metrics_passing(),
+        profile="development",
+        provider_mode="fake",
+        timestamp=1_700_000_000.0,
+        duration_seconds=0.0,
+    )
+    text = payload.decode("utf-8")
+    for token in FORBIDDEN_CONTENT_TOKENS:
+        assert token not in text, f"forbidden token '{token}' present in gate report"
+
+
+def test_serialize_gate_report_citation_ids_only_not_content() -> None:
+    """critical_observations record citation IDs only, never citation text."""
+    from backend.features.evaluation.gates.adapters.report import serialize_gate_report
+    from backend.features.evaluation.gates.domain import GateDecision
+
+    decision = GateDecision(status="block", reason_codes=("critical_contract_mismatch",))
+    results = _all_critical_results_matching()
+    # Override one critical case to carry a citation ID (mismatch case).
+    results = [
+        _case_result(
+            case_id="scenario.eval-11.es",
+            observed_outcome="contradictory_information",
+            reason_code="contradiction_detected",
+            citation_ids=("fragment.doc-001",),
+        )
+        if r.case_id == "scenario.eval-11.es"
+        else r
+        for r in results
+    ]
+    summary = _run_summary(_gate_metrics_passing(), results)
+    payload = serialize_gate_report(
+        decision=decision,
+        summary=summary,
+        baseline=_gate_metrics_passing(),
+        profile="development",
+        provider_mode="fake",
+        timestamp=1_700_000_000.0,
+        duration_seconds=0.0,
+    )
+    data = json.loads(payload.decode("utf-8"))
+    obs = next(o for o in data["critical_observations"] if o["case_id"] == "scenario.eval-11.es")
+    assert obs["citation_ids"] == ["fragment.doc-001"]
+    # The ID is an opaque token, not citation text/content.
+    assert "fragment.doc-001" in payload.decode("utf-8")
