@@ -425,3 +425,43 @@ def test_unknown_critical_reason_code_blocks() -> None:
     decision = evaluate_gate(summary=summary, baseline=_gate_metrics_passing())
     assert decision.status == "block"
     assert "critical_contract_mismatch" in decision.reason_codes
+
+
+# ---------------------------------------------------------------------------
+# review-6cbe7de75e833f5a R3-002: non-critical unknown reason codes block
+# ---------------------------------------------------------------------------
+
+
+def test_r3_002_unknown_reason_code_on_non_critical_result_blocks() -> None:
+    """An unknown reason code on a NON-critical result MUST block (fail-closed);
+    before the fix only critical-case reason codes were validated."""
+    from backend.features.evaluation.gates.application import evaluate_gate
+
+    results = _all_critical_results_matching() + [
+        _case_result(
+            case_id="scenario.eval-01.es",  # non-critical
+            observed_outcome="supported",
+            reason_code="totally-unknown-code",  # not allowlisted
+            citation_ids=("fragment.x",),
+        )
+    ]
+    summary = _run_summary(_gate_metrics_passing(), results)
+    decision = evaluate_gate(summary=summary, baseline=_gate_metrics_passing())
+    assert decision.status == "block"
+    assert "unknown_reason_code" in decision.reason_codes
+
+
+def test_r3_002_unknown_critical_reason_code_still_blocks() -> None:
+    """The existing critical-contract reason-code validation is preserved."""
+    from backend.features.evaluation.gates.application import evaluate_gate
+
+    results = _critical_results_with_override(
+        "scenario.eval-11.es",
+        observed_outcome="contradictory_information",
+        reason_code="totally-unknown-code",
+        citation_ids=(),
+    )
+    summary = _run_summary(_gate_metrics_passing(), results)
+    decision = evaluate_gate(summary=summary, baseline=_gate_metrics_passing())
+    assert decision.status == "block"
+    assert "critical_contract_mismatch" in decision.reason_codes

@@ -41,7 +41,7 @@ class KernelAdapter:
         )
         return CaseResult(
             case_id=case.scenario_id,
-            language=case.language,
+            language=_observed_routed_language(response.citations, self.corpus, case.language),
             observed_outcome=response.outcome,
             reason_code=response.reason_code,
             citation_ids=response.citations,
@@ -60,3 +60,19 @@ def _provider_for(case: CaseRecord) -> FakeProvider:
 def _citations_match(observed: tuple[str, ...], expected: tuple[str, ...]) -> bool:
     """Exact citation-set match: same ids, same order-independent set."""
     return set(observed) == set(expected) and len(observed) == len(expected)
+
+
+def _observed_routed_language(
+    citations: tuple[str, ...],
+    corpus: Corpus,
+    case_language: str,
+) -> str:
+    """Observe routed language from cited evidence, not the case input."""
+    if not citations:
+        return case_language
+    by_id = {fragment.identifier: fragment for fragment in corpus.fragments}
+    for citation_id in citations:
+        fragment = by_id.get(citation_id)
+        if fragment is not None:
+            return fragment.language
+    return case_language

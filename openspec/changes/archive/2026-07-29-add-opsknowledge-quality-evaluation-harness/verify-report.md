@@ -20,6 +20,8 @@ build_output_hash: sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca49599
 **Version**: 1
 **Mode**: Standard (Strict TDD false)
 
+> **Evidence status:** This report preserves the original verification report as an intermediate snapshot. The focused and full-test evidence below remains accurate for that snapshot. Final post-correction and post-normalization evidence is recorded separately below.
+
 ### Completeness
 
 | Metric | Value |
@@ -62,6 +64,15 @@ Runtime harness passed exactly once:
 | Retention | The run moved the prior current candidate to populated `previous/`; current and previous files matched byte-for-byte. Only validation-created `evaluation-runs/previous/{summary.json,records.jsonl,report.txt}` was removed afterward; `current/` remained with its three byte-equivalent files. |
 
 `make ci` passed exactly once with exit 0 and output hash `sha256:958da0a5aaad6002912fd19013c49ab637e0d08cfdb88dd423581a7c84fd72ed`. Every canonical stage passed in order: `check-uv-version`, `sync-env`, `check-evaluation-dataset`, `check-focused-tests`, `ruff-check`, `ruff-format`, `pyright-check`, `pytest-check`, `check-dependency-boundaries`, `check-audit`, `license-inventory`. Its canonical pytest stage collected and passed 357 tests. `eval-quality` is absent from the `ci` recipe.
+
+### Post-review Correction and Final Normalization
+
+- Review correction `R4-001` changed `backend/features/evaluation/gates/adapters/report.py` and `tests/unit/test_technical_grounding_gates_report.py`; the correction delta was 108 lines before canonical formatting.
+- Focused post-correction verification passed 38 tests with `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py -q`.
+- The repository's canonical formatter subsequently reformatted `tests/unit/test_technical_grounding_gates_report.py`.
+- Final post-normalization `make ci` passed with exit 0 and 498 tests; output SHA-256: `d59cd0b8c2fa2b565c04e7447bf2da5fa4444070fe95371ec0bd667880211ab6`.
+- Native four-lens review lineage `review-f0aff53955e5bf11` is approved. Receipt identity: `sha256:cd6a60de982befa21e48148c85dadf2181e945f7114c44aaaed19cba23bf703a`. The pre-commit gate returned allow at store revision `sha256:2670f1a323912e77958c90d2d618aefa664af3bf7d6cf1b4f195eee78fbe763d` before this documentation reconciliation.
+- This documentation edit invalidates the previous candidate identity; the current post-documentation candidate is not reviewed and will be reviewed afterward.
 
 ### Spec Compliance Matrix
 
@@ -124,4 +135,4 @@ All eight normative requirements and scenarios passed runtime verification; the 
 - launch_revision: `sha256:b7a36ead3c8f80643cbffb0f15d7045e7da21b2a8349cee3de887f0f375a4364`
 - max_changed_lines: 400
 - strict_tdd: false
-- rdd: disabled/unmanaged under upstream issue #1892; no review or 4R approval initiated
+- rdd: The prior `disabled/unmanaged` claim is superseded by approved native four-lens review lineage `review-f0aff53955e5bf11`; receipt identity `sha256:cd6a60de982befa21e48148c85dadf2181e945f7114c44aaaed19cba23bf703a`; pre-commit gate allow at store revision `sha256:2670f1a323912e77958c90d2d618aefa664af3bf7d6cf1b4f195eee78fbe763d` before this documentation reconciliation
