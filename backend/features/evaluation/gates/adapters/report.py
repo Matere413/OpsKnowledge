@@ -188,18 +188,38 @@ class GateReportAdapter:
         if current.exists():
             # Move current -> previous first; if that fails, current is untouched
             # but staging must be cleaned so the next run starts fresh.
-            if previous.exists():
-                shutil.rmtree(previous)
+            # Preserve a pre-existing previous as a backup so a failed final
+            # rename can restore BOTH prior committed snapshots unchanged.
+            backup_previous = self.base_dir / f".previous-backup-{run_id}"
+            prior_previous_existed = previous.exists()
+            if prior_previous_existed:
+                # Acquire the backup inside a cleanup guard: os.replace is atomic,
+                # so a failure here leaves current AND previous untouched; only
+                # staging must be removed so the next run starts fresh.
+                try:
+                    _os_replace(previous, backup_previous)
+                except OSError:
+                    shutil.rmtree(staged, ignore_errors=True)
+                    raise
             try:
                 _os_replace(current, previous)
                 try:
                     _os_replace(staged, current)
                 except OSError:
-                    # Rollback: restore prior current from previous.
+                    # Rollback: restore prior current from previous, then
+                    # restore the pre-existing previous from its backup.
                     _os_replace(previous, current)
+                    if prior_previous_existed:
+                        _os_replace(backup_previous, previous)
                     shutil.rmtree(staged, ignore_errors=True)
                     raise
+                # Success: remove the backup of the old previous (now replaced).
+                if prior_previous_existed:
+                    shutil.rmtree(backup_previous, ignore_errors=True)
             except OSError:
+                # current->previous failed; restore the pre-existing previous.
+                if prior_previous_existed:
+                    _os_replace(backup_previous, previous)
                 shutil.rmtree(staged, ignore_errors=True)
                 raise
         else:

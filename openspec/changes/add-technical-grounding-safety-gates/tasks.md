@@ -35,6 +35,6 @@ Chain strategy: stacked-to-main
 - [x] 3.6 (2F) RED Make/CI/boundary tests; GREEN Makefile target and evidence wiring; REFACTOR no `ci`/`ci-pr2a` drift.
 
 ## Phase 3: Integration Verification
-- [ ] 4.1 Run all gate focused tests; preserve every specification scenario and all threat-matrix rows (all five design rows are N/A, so no threat RED tests).
-- [ ] 4.2 Run `make eval-quality-gate`; verify repeatable allowlisted evidence and non-zero `block`/`escalate`.
-- [ ] 4.3 Run `make ci-pr2a`, then `make ci`; do not alter roadmap, archive/RDD claims, harness, kernel, dataset, providers, or dependencies.
+- [x] 4.1 Run all gate focused tests; preserve every specification scenario and all threat-matrix rows (all five design rows are N/A, so no threat RED tests). *(Verified once at native attempt ordinal 9: 132 passed.)*
+- [x] 4.2 Run `make eval-quality-gate`; verify repeatable allowlisted evidence and non-zero `block`/`escalate`. *(Verified once at native attempt ordinal 9: expected fail-closed `critical_contract_mismatch`, safe deterministic report.)*
+- [x] 4.3 Run `make ci-pr2a`, then `make ci`; do not alter roadmap, archive/RDD claims, harness, kernel, dataset, providers, or dependencies. *(Verified once at native attempt ordinal 9: both exit 0.)*
