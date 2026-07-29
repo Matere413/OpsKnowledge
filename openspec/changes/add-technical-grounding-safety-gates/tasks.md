@@ -2,48 +2,39 @@
 
 ## Review Workload Forecast
 
-| Unit | Runtime/source | Tests | Baseline evidence | Makefile/docs | OpenSpec artifacts | Authored subtotal |
-|---|---:|---:|---:|---:|---:|---:|
-| 1 Policy/contracts | 170–220 | 150–190 | 0 | 0 | 0 | 320–410 |
-| 2 Runner/contracts | 100–140 | 100–140 | 0 | 0 | 0 | 200–280 |
-| 3 Report/CLI/wiring | 170–230 | 160–220 | 30–50 | 8–15 | 0 | 368–515 |
-| **Total** | **440–590** | **410–550** | **30–50** | **8–15** | **~40–60** | **888–1,205** |
-
-OpenSpec artifact lines are excluded from the 400-line threshold.
-
-Decision needed before apply: Yes
-Chained PRs recommended: Yes
-Chain strategy: pending
-400-line budget risk: High
+Former uncommitted slice 2 measures 1,535 authored lines: report adapter 280, CLI 85, tests 1,161, and Makefile +9; native runtime recorded 1,686. Generated `evaluation-runs/gate/current/report.json` (3,136 bytes) and OpenSpec are excluded.
 
 ### Suggested Work Units
 
-| Unit | Goal | Likely PR | Focused test command | Runtime harness | Rollback boundary |
-|---|---|---|---|---|---|
-| 1 | Immutable domain contracts and fail-closed floors | Pending | `uv run --frozen pytest tests/unit/test_technical_grounding_gates_policy.py -q` | N/A — pure policy | Remove new `gates/{__init__,domain,policy,ports}.py` and its test |
-| 2 | Runner and whole-answer critical contracts | Pending | `uv run --frozen pytest tests/unit/test_technical_grounding_gates_runner.py -q` | N/A — CLI wiring follows | Remove new `gates/application.py` and runner test |
-| 3 | Safe atomic evidence, CLI, Make target, baseline | Pending | `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py tests/architecture/test_technical_grounding_gates.py -q` | `make eval-quality-gate` | Revert gate report/CLI, Make target, gate evidence, and tests |
+| Slice | PR | Estimate | Dependency; current material | Focused test | Runtime; rollback |
+|---|---|---:|---|---|---|
+| 2A report core | 2A | 380–395 | Unit 1; `report.py:1-143`, report tests `:1-252` | `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py -q -k serialize_gate_report` | N/A pure serializer; remove those hunks |
+| 2B safety proof | 2B | 180–190 | 2A; report tests `:253-440` (test-only) | `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py -q -k 'critical_observations or forbidden or citation_ids'` | N/A — pure safety proof; remove coverage hunk |
+| 2C promotion | 2C | 235–245 | 2B; `report.py:146-207`, tests `:447-623` | `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py -q -k 'promote_'` | N/A — temp-path adapter; remove promotion hunk/tests |
+| 2D baseline | 2D | 190–200 | 2C; `report.py:209-280`, tests `:626-751` | `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py -q -k bootstrap_baseline` | N/A — snapshot loader only; remove baseline hunk/tests/evidence |
+| 2E CLI | 2E | 255–265 | 2D; `cli.py:1-85`, report tests `:753-930` | `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py -q -k 'run_gate_'` | `uv run --frozen python -m backend.features.evaluation.gates.cli evaluation-dataset` → safe block/1; remove CLI/tests |
+| 2F wiring | 2F | 235–245 | 2E; Makefile +9, architecture test 231 lines | `uv run --frozen pytest tests/architecture/test_technical_grounding_gates.py -q` | `make eval-quality-gate` → expected block; revert Make/test |
 
-## Phase 1: Policy and Contracts
+Maximum coherent slice is ~395; no size exception or fragmentation beyond these boundaries is required. Tests remain with the behavior they prove; 2B is intentionally a focused safety-proof slice. Current native revision: `sha256:7a7628b8b191ff945be4734df55ff45f40d3dc5c93754274de5df246dcf09091`, `next_action: begin`.
 
-- [x] 1.1 RED: create focused tests for immutable types, allowlisted statuses/reasons, five floors, cross-multiplication, malformed/boolean/negative/zero-denominator evidence, and baseline validation.
-- [x] 1.2 GREEN: add `backend/features/evaluation/gates/{__init__,domain,policy,ports}.py`; implement immutable contracts, reviewed floors, immutable baseline comparison, and fail-closed precedence.
-- [x] 1.3 REFACTOR/verify: keep the gate dependency-free and harness-independent; run the Unit 1 focused command.
+Decision needed before apply: No
+Chained PRs recommended: Yes
+Chain strategy: stacked-to-main
+400-line budget risk: High
 
-## Phase 2: Runner and Critical Contracts
+## Phase 1: Completed Unit 1 (merged `b6aa528`)
+- [x] 1.1–1.3 Policy RED/GREEN/REFACTOR: immutable contracts, floors, malformed evidence, and fail-closed precedence.
+- [x] 2.1–2.3 Runner RED/GREEN/REFACTOR: critical whole-answer contracts, frozen-clock determinism, and unchanged numbers-only harness.
 
-- [x] 2.1 RED: test `scenario.eval-11/12`, `eval-16`, `eval-15`, `eval-13`, and both injected failures for exact outcome/reason pairs, empty citations, no kernel/metric reimplementation, and frozen `Clock` determinism.
-- [x] 2.2 GREEN: add `backend/features/evaluation/gates/application.py`; consume `RunSummary.metrics`/`CaseResult`, select critical observations, emit safe `GateDecision`, and make `block` outrank `escalate`.
-- [x] 2.3 REFACTOR/verify: run the Unit 2 focused command and confirm the existing evaluation harness remains numbers-only and unchanged.
+## Phase 2: Re-divided former Slice 2 (Strict TDD; stack in order)
+- [x] 3.1 (2A) RED core allowlist/status/metadata tests; GREEN `report.py:1-143`; REFACTOR canonical safe JSON.
+- [ ] 3.2 (2B) RED critical-observation/content-safety tests; GREEN verifies 2A’s serializer (no duplicated production hunk); REFACTOR coverage.
+- [ ] 3.3 (2C) RED staging/atomic/rollback tests; GREEN `report.py:146-207`; REFACTOR cleanup and prior-byte preservation.
+- [ ] 3.4 (2D) RED baseline-source/validation tests; GREEN `report.py:209-280`; REFACTOR immutable baseline handling.
+- [ ] 3.5 (2E) RED exit/stdout/no-network tests; GREEN `cli.py`; REFACTOR frozen `Clock` wiring and safe errors.
+- [ ] 3.6 (2F) RED Make/CI/boundary tests; GREEN Makefile target and evidence wiring; REFACTOR no `ci`/`ci-pr2a` drift.
 
-## Phase 3: Safe Report and Opt-In Wiring
-
-- [ ] 3.1 RED: test report allowlists/safe stdout, forbidden content absence, staging validation, atomic current/previous promotion, rollback on write/rename failure, CLI exit codes, no-dependency imports, and unchanged `ci`/`ci-pr2a` blocks.
-- [ ] 3.2 GREEN: add `adapters/report.py` and `cli.py`; modify only `Makefile` with `.PHONY`/`eval-quality-gate`; bootstrap validated baseline, journal promotion, safe errors, and `evaluation-runs/gate/current` evidence (no `previous` until replacement).
-- [ ] 3.3 REFACTOR/verify: preserve no subprocess/network/persistence/content logging, inject `FrozenClock`, and run the Unit 3 focused command.
-
-## Phase 4: Integration Verification
-
-- [ ] 4.1 Run all focused gate tests: `uv run --frozen pytest tests/unit/test_technical_grounding_gates_policy.py tests/unit/test_technical_grounding_gates_runner.py tests/unit/test_technical_grounding_gates_report.py tests/architecture/test_technical_grounding_gates.py -q`.
-- [ ] 4.2 Run `make eval-quality-gate`; verify repeatable safe evidence and non-zero `block`/`escalate` behavior.
-- [ ] 4.3 Run `make ci-pr2a`, then canonical `make ci`; do not alter roadmap, archive state, RDD/4R claims, or unrelated harness/kernel/dataset files.
+## Phase 3: Integration Verification
+- [ ] 4.1 Run all gate focused tests; preserve every specification scenario and all threat-matrix rows (all five design rows are N/A, so no threat RED tests).
+- [ ] 4.2 Run `make eval-quality-gate`; verify repeatable allowlisted evidence and non-zero `block`/`escalate`.
+- [ ] 4.3 Run `make ci-pr2a`, then `make ci`; do not alter roadmap, archive/RDD claims, harness, kernel, dataset, providers, or dependencies.
