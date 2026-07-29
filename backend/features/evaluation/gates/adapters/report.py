@@ -13,9 +13,6 @@ committed evidence remains unchanged; the next invocation recovers cleanly.
 
 Distinct from the harness ``ReportAdapter``: the gate owns its own store so
 harness multi-file writes cannot move gate ``current`` before a later failure.
-
-Baseline bootstrap belongs to a later stacked slice and lives in this same
-module once that slice lands.
 """
 
 from __future__ import annotations
@@ -209,9 +206,75 @@ class GateReportAdapter:
             _os_replace(staged, current)
 
 
+def _signal_from_dict(raw: dict[str, Any]) -> GateSignal:
+    num = raw["numerator"]
+    den = raw["denominator"]
+    if not isinstance(num, int) or isinstance(num, bool):
+        raise ValueError("invalid signal numerator")
+    if not isinstance(den, int) or isinstance(den, bool):
+        raise ValueError("invalid signal denominator")
+    if num < 0 or den < 0:
+        raise ValueError("negative signal value")
+    if den == 0:
+        raise ValueError("zero denominator")
+    if num > den:
+        raise ValueError("numerator exceeds denominator")
+    return GateSignal(numerator=num, denominator=den)
+
+
+def _metrics_from_dict(raw: dict[str, Any]) -> GateMetrics:
+    expected = set(METRIC_NAMES)
+    if set(raw.keys()) != expected:
+        raise ValueError("metrics keys do not match expected signals")
+    return GateMetrics(
+        language_routing=_signal_from_dict(raw["language_routing"]),
+        sensitive_block=_signal_from_dict(raw["sensitive_block"]),
+        outcome_classification=_signal_from_dict(raw["outcome_classification"]),
+        citation_exact_match=_signal_from_dict(raw["citation_exact_match"]),
+        contradiction_detection=_signal_from_dict(raw["contradiction_detection"]),
+    )
+
+
+def bootstrap_baseline(*, gate_dir: Path, harness_current: Path) -> GateMetrics:
+    """Resolve the immutable baseline for the current run.
+
+    On the first gate run (no gate ``current/``), bootstraps from the validated
+    harness ``evaluation-runs/current/summary.json``. On later runs, reads the
+    gate snapshot ``gate_dir/current/report.json`` so the baseline is the prior
+    reviewed gate result. Missing or malformed sources block (raise).
+    """
+    gate_report = gate_dir / "current" / "report.json"
+    if gate_report.exists():
+        try:
+            data = json.loads(gate_report.read_bytes().decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError, OSError) as exc:
+            raise ValueError("malformed gate baseline report") from exc
+        if not isinstance(data, dict):
+            raise ValueError("malformed gate baseline report: not an object")
+        metrics = data.get("observed_metrics")
+        if not isinstance(metrics, dict):
+            raise ValueError("gate baseline report missing observed_metrics")
+        return _metrics_from_dict(metrics)
+
+    harness_summary = harness_current / "summary.json"
+    if not harness_summary.exists():
+        raise ValueError("no baseline source: gate and harness snapshots both missing")
+    try:
+        data = json.loads(harness_summary.read_bytes().decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError) as exc:
+        raise ValueError("malformed harness summary") from exc
+    if not isinstance(data, dict):
+        raise ValueError("malformed harness summary: not an object")
+    metrics = data.get("metrics")
+    if not isinstance(metrics, dict):
+        raise ValueError("harness summary missing metrics")
+    return _metrics_from_dict(metrics)
+
+
 __all__ = [
     "GATE_VERSION",
-    "GateReportAdapter",
     "SCHEMA_VERSION",
+    "GateReportAdapter",
+    "bootstrap_baseline",
     "serialize_gate_report",
 ]
