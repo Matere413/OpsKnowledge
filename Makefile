@@ -10,7 +10,7 @@ EXPECTED_UV_VERSION := 0.11.29
 # Never interpolate a configurable executable in shell command position.
 UV_RUN := python3 scripts/ci/run_uv_command.py
 
-.PHONY: ci ci-pr2a check-uv-version sync-env check-focused-tests check-evaluation-dataset ruff-check ruff-format pyright-check pytest-check check-dependency-boundaries check-audit license-inventory eval-quality
+.PHONY: ci ci-pr2a check-uv-version sync-env check-focused-tests check-evaluation-dataset ruff-check ruff-format pyright-check pytest-check check-dependency-boundaries check-audit license-inventory eval-quality eval-quality-gate
 
 ci: check-uv-version
 	@echo "=== uv version OK ==="
@@ -93,3 +93,11 @@ check-evaluation-dataset:
 eval-quality:
 	$(UV_RUN) run --frozen python -m backend.features.evaluation.cli evaluation-dataset
 	@echo "=== eval-quality OK ==="
+
+# Opt-in technical grounding safety gate (NOT part of `ci` or `ci-pr2a`).
+# Runs the unchanged 34-case evaluation, evaluates critical contracts and
+# reviewed floors, and promotes a safe gate report under evaluation-runs/gate/
+# (current/ + previous/ on replacement). block/escalate exit non-zero.
+eval-quality-gate:
+	$(UV_RUN) run --frozen python -m backend.features.evaluation.gates.cli evaluation-dataset
+	@echo "=== eval-quality-gate OK ==="
