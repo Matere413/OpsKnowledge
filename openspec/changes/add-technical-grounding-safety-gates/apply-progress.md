@@ -11,13 +11,14 @@ Native attempt: ordinal 2, expected revision `sha256:9b8fd8453b8a2158e0dfac7f7c4
 Native attempt: ordinal 3, expected revision `sha256:feb83a3c3d0136b35965f5cf461464e5dea5fe94913e311ac5c410a011569b9c`
 Native attempt: ordinal 4, expected revision `sha256:82a3662fd5a6fb51b7efe5289e853d5cc85bdd4e098fb9da6411b60e3ba1281f`
 Native attempt: ordinal 5, expected revision `sha256:0b458e9d4b8a8e6eec5fb4f99cd432e64cf397baa506d981279ad19b2c1615dc`
+Native attempt: ordinal 6, expected revision `sha256:0140b0c961450fb5eb05690533d07a2bbcbff993aded4b4540fd667472bb5967`
 
 ## Slice Boundary
 
-This apply progress merges five autonomous stacked-to-main batches. The
+This apply progress merges six autonomous stacked-to-main batches. The
 former slice-2 was re-planned into six sub-slices (2A–2F); this file records
 the original full slice-2 provenance (kept as audit history) AND the isolated
-PR 2A, PR 2B, and PR 2C candidates that replaced it.
+PR 2A, PR 2B, PR 2C, and PR 2D candidates that replaced it.
 
 ### Slice 1 — `slice-1-policy-runner` (MERGED in `master` at `b6aa528`)
 - Phase 1: Policy and Contracts (tasks 1.1–1.3) — Unit 1
@@ -42,11 +43,17 @@ were preserved recoverably outside the candidate (see "Later-work archive").
   forbids content tokens — NO duplicated production hunk
 - Later sub-slices 2C–2F are NOT in this candidate; their bytes stay archived
 
-### PR 2C — `slice-2c-atomic-promotion` (THIS BATCH)
+### PR 2C — `slice-2c-atomic-promotion` (MERGED in `master` at `42e0b58`)
 - Phase 2 task 3.3 only: staging validation, atomic current/previous promotion, rollback, cleanup
 - Restores `report.py:146-207` (validation + `_os_replace` + `GateReportAdapter.promote`) and report tests `:441-623` (9 `promote_` tests) from the archive
 - GREEN: the 9 restored promotion tests pass against the newly-restored adapter; 2A serializer + 2B safety tests unchanged
 - Later sub-slices 2D–2F are NOT in this candidate; their bytes stay archived (baseline source `:209-280`, CLI, Makefile, architecture wiring all excluded)
+
+### PR 2D — `slice-2d-baseline-validation` (THIS BATCH)
+- Phase 2 task 3.4 only: baseline-source resolution and validation (immutable baseline bootstrap)
+- Restores `report.py:209-280` (`_signal_from_dict`, `_metrics_from_dict`, `bootstrap_baseline`, updated `__all__`) and report tests `:626-751` (`_write_harness_summary` helper + 5 `bootstrap_baseline` tests) from the archive
+- GREEN: the 7 restored baseline tests pass against the newly-restored bootstrap code; 2A serializer + 2B safety + 2C promotion tests unchanged (25 total)
+- Later sub-slices 2E–2F are NOT in this candidate; their bytes stay archived (CLI, Makefile, architecture wiring, 2E tests all excluded)
 
 Phase 4 (Integration Verification, tasks 4.1–4.3) is a **later slice** and was
 NOT implemented. This batch did not perform final Phase 4 verification beyond
@@ -79,16 +86,22 @@ the focused evidence needed for this slice.
   - GREEN: the restored 6 tests pass against 2A's already-merged serializer (`report.py:1-143` unchanged). No production hunk was duplicated or added — this is a test-only slice proving the 2A serializer already emits the allowlisted critical observations and forbids content tokens at the serializer boundary.
   - REFACTOR: restored bytes from the verified archive were byte-faithful; the only adjustment was trimming one trailing blank line (W292) introduced by the archive block boundary; `ruff format --check` clean.
 
-### PR 2C (this batch — isolated slice-2c-atomic-promotion)
+### PR 2C (merged in master at 42e0b58 — isolated slice-2c-atomic-promotion)
 - [x] 3.3 (2C) RED staging/atomic/rollback tests; GREEN `report.py:146-207`; REFACTOR cleanup and prior-byte preservation.
   - RED provenance preserved from the former slice-2: the 9 `promote_` tests (3 staging-validation + 3 atomic-promotion + 2 rollback + 1 cleanup) were written first against a missing `GateReportAdapter` and failed (`ImportError: cannot import name 'GateReportAdapter'`) when restored to a master tree that only had the 2A serializer.
   - GREEN: restored `report.py:146-207` (`_validate_report_payload`, `_os_replace` module-level alias, `GateReportAdapter.promote` with staged validation, atomic current/previous promotion, stale-previous removal, rollback on first/second rename failure, staging cleanup) + needed imports (`os`, `shutil`, `dataclass`, `Path`) and `__all__` update. The 9 `promote_` tests pass; 2A serializer (3) and 2B safety (6) tests unchanged (18/18 total).
   - REFACTOR: restored bytes from the verified archive were byte-faithful. Adjustments limited to: (1) re-added `from pathlib import Path` to the test imports (2A had removed it during isolation; the archive's original full file imported `Path` and the 2C block's `tmp_path: Path` annotations require it); (2) `ruff format` applied one canonical boundary fix (added a blank line before the 2C section header, trimmed a trailing blank line at EOF introduced by the archive block boundary). No test logic or production logic altered. `ruff format --check` clean.
 
+### PR 2D (this batch — isolated slice-2d-baseline-validation)
+- [x] 3.4 (2D) RED baseline-source/validation tests; GREEN `report.py:209-280`; REFACTOR immutable baseline handling.
+  - RED provenance preserved from the former slice-2: the 5 `bootstrap_baseline` tests (1 first-run-from-harness + 1 later-run-from-gate + 1 no-source-raises + 1 malformed-harness-raises + 3 parametrized bad-signal rejections) + the `_write_harness_summary` helper were written first against a missing `bootstrap_baseline` and failed (`ImportError: cannot import name 'bootstrap_baseline'`) when restored to a master tree (`42e0b58`) that had only the 2A serializer + 2C promotion adapter.
+  - GREEN: restored `report.py:209-280` (`_signal_from_dict` with int/bool/negative/zero-denominator/numerator-exceeds validation, `_metrics_from_dict` with exact key-set validation, `bootstrap_baseline` with gate-snapshot-preferred-then-harness-fallback resolution and malformed/missing rejection) + updated `__all__` (now exports `bootstrap_baseline`) + removed the 2C-era "baseline bootstrap belongs to a later stacked slice" docstring sentence. Re-added `import pytest` (removed by 2A isolation; the 2D parametrized test uses `@pytest.mark.parametrize`). The 7 `bootstrap_baseline` tests pass; 2A serializer (3) + 2B safety (6) + 2C promotion (9) tests unchanged (25/25 total).
+  - REFACTOR: restored bytes from the verified archive were byte-faithful. `report.py` (280 lines) is now byte-identical to the archive `report.py.full` (280 lines). The test file (750 lines) is byte-identical to the archive's first 750 lines; the only adjustment is trimming the archive's two trailing blank lines (lines 751-752, which belonged to the 2E boundary and became W292 trailing blanks once 2E was not restored) — the same kind of whitespace-only canonicalization as PR 2B and PR 2C. No test or production logic altered. `ruff format --check` clean (no canonicalization needed beyond the trailing-blank trim).
+
 ## Remaining Tasks (later slices)
 
 - [x] 3.3 (2C) RED staging/atomic/rollback tests; GREEN `report.py:146-207`; REFACTOR cleanup and prior-byte preservation. *(completed in PR 2C — entry retained for traceability)*
-- [ ] 3.4 (2D) RED baseline-source/validation tests; GREEN `report.py:209-280`; REFACTOR immutable baseline handling.
+- [x] 3.4 (2D) RED baseline-source/validation tests; GREEN `report.py:209-280`; REFACTOR immutable baseline handling. *(completed in PR 2D — entry retained for traceability)*
 - [ ] 3.5 (2E) RED exit/stdout/no-network tests; GREEN `cli.py`; REFACTOR frozen `Clock` wiring and safe errors.
 - [ ] 3.6 (2F) RED Make/CI/boundary tests; GREEN Makefile target and evidence wiring; REFACTOR no `ci`/`ci-pr2a` drift.
 - [ ] 4.1 Run all gate focused tests: `uv run --frozen pytest tests/unit/test_technical_grounding_gates_policy.py tests/unit/test_technical_grounding_gates_runner.py tests/unit/test_technical_grounding_gates_report.py tests/architecture/test_technical_grounding_gates.py -q`.
@@ -144,18 +157,26 @@ rewritten.
 |------|--------|------:|---------------|
 | `tests/unit/test_technical_grounding_gates_report.py` | Modified (appended 2B block) | 247→436 (+189) | Restored byte-faithful critical-observation and forbidden-content safety tests from the verified archive (archive lines 253-440). 6 tests: `records_five_signals_in_baseline_and_observed`, `records_reviewed_floors`, `critical_observations_are_allowlisted_and_selected`, `excludes_non_critical_results`, `contains_no_forbidden_content_tokens`, `citation_ids_only_not_content`. One trailing blank line trimmed (W292). No production code changed. |
 
-### PR 2C (this batch — isolated slice-2c-atomic-promotion)
+### PR 2C (merged in master at 42e0b58 — isolated slice-2c-atomic-promotion)
 
 | File | Action | Lines | What Was Done |
 |------|--------|------:|---------------|
 | `backend/features/evaluation/gates/adapters/report.py` | Modified (appended 2C production block) | 141→217 (+76, -4) | Restored byte-faithful `report.py:146-207` from the verified archive: `_validate_report_payload` (empty/malformed/non-dict/non-allowlist/invalid-status rejection), module-level `_os_replace = os.replace` (monkeypatch seam), `@dataclass(frozen=True, slots=True) GateReportAdapter` with `promote()` (staged validation before I/O, stale-previous removal, atomic current→previous then staged→current, rollback restoring prior current on 2nd-rename failure, staging cleanup on 1st-rename failure and on rollback). Added imports `os`, `shutil`, `dataclass`, `Path`; updated module docstring (promotion now present, baseline still later); `__all__` now exports `GateReportAdapter`. Removed 4 lines: the old 2A-only docstring sentence and the narrow `__all__`. Baseline block (`:209-280`) NOT restored — stays archived for 2D. |
 | `tests/unit/test_technical_grounding_gates_report.py` | Modified (appended 2C test block + import) | 436→620 (+184) | Restored byte-faithful `promote_` tests from the verified archive (archive lines 441-623). 9 tests: `test_promote_rejects_empty_payload_before_touching_committed_paths`, `test_promote_rejects_malformed_json_payload`, `test_promote_rejects_payload_missing_allowlisted_keys`, `test_promote_creates_current_on_first_run`, `test_promote_moves_current_to_previous_on_replacement`, `test_promote_replaces_old_previous_on_third_run`, `test_promote_rollback_on_rename_failure_restores_current`, `test_promote_rollback_on_first_rename_failure_leaves_current_intact`, `test_promote_cleans_staging_on_failure`. Re-added `from pathlib import Path` (2C block uses `tmp_path: Path`); `ruff format` applied one boundary fix (blank line before section header + trailing-blank trim). Later tests (`:625+`, baseline/CLI/imports/deterministic) NOT restored — stay archived for 2D/2E. |
 
+### PR 2D (this batch — isolated slice-2d-baseline-validation)
+
+| File | Action | Lines | What Was Done |
+|------|--------|------:|---------------|
+| `backend/features/evaluation/gates/adapters/report.py` | Modified (appended 2D production block) | 217→280 (+67, -4) | Restored byte-faithful `report.py:209-280` from the verified archive: `_signal_from_dict` (int/bool/negative/zero-denominator/numerator-exceeds validation), `_metrics_from_dict` (exact key-set validation against METRIC_NAMES), `bootstrap_baseline` (gate-snapshot `current/report.json` preferred on later runs, harness `current/summary.json` fallback on first run, malformed/missing/non-dict/missing-metrics rejection). Updated `__all__` to export `bootstrap_baseline`. Removed 4 lines: the 2C-era "Baseline bootstrap belongs to a later stacked slice and lives in this same module once that slice lands." docstring sentence (baseline now present). `report.py` (280 lines) is now byte-identical to the archive `report.py.full` (280 lines). |
+| `tests/unit/test_technical_grounding_gates_report.py` | Modified (appended 2D test block + import) | 620→750 (+130, -0) | Restored byte-faithful `bootstrap_baseline` tests from the verified archive (archive lines 625-751). 5 tests + 1 helper: `_write_harness_summary` helper, `test_bootstrap_baseline_from_harness_snapshot_on_first_run`, `test_bootstrap_baseline_from_gate_snapshot_on_later_run`, `test_bootstrap_baseline_raises_when_no_source`, `test_bootstrap_baseline_raises_on_malformed_harness_summary`, `test_bootstrap_baseline_rejects_zero_denominator_or_negative` (3 parametrized cases: zero-denominator, negative-numerator, numerator-exceeds-denominator). Re-added `import pytest` (removed by 2A isolation; the 2D parametrized test uses `@pytest.mark.parametrize`; the archive's original full file imported `pytest`). Test file (750 lines) is byte-identical to the archive's first 750 lines; the archive's two trailing blank lines (751-752, belonging to the 2E boundary) were trimmed (W292). Later tests (`:753-930`, CLI/imports/deterministic) NOT restored — stay archived for 2E. |
+
 **Authored line totals (excluding OpenSpec + generated evidence):**
 - PR 2A: 388 total lines (report.py 141 + test 247); 317 non-blank authored lines.
 - PR 2B: 190 inserted lines (189 test block + 1 separator blank); 169 non-blank authored lines.
 - PR 2C: 268 changed lines (264 insertions + 4 deletions); 204 non-blank authored lines (76 production + 4 docstring/import deletions + 184 test insertions).
-- PR 2C is under the 400-line hard maintainer threshold. No `size:exception` requested or assumed.
+- PR 2D: 201 changed lines (197 insertions + 4 deletions); 172 non-blank authored lines (67 production insertions + 4 docstring deletions + 130 test insertions including 1 `import pytest` re-add).
+- PR 2D is under the 400-line hard maintainer threshold. No `size:exception` requested or assumed.
 
 ### Removed from the active candidate (archived, not lost)
 
@@ -202,21 +223,28 @@ rewritten.
 |------|-----------|-------|------------|-----|-------|-------------|----------|
 | 3.2 (2B) | `tests/unit/test_technical_grounding_gates_report.py` | Unit | ✅ 92/92 (78 gate slice-1 + 14 harness arch) | ✅ Preserved from former slice-2: the 6 critical-observation/forbidden-content/citation-ids tests were RED first (module missing) | ✅ 9/9 passed (3 from 2A + 6 restored 2B) against 2A's already-merged serializer — no production hunk added | ✅ 6 cases: five-signal baseline/observed, reviewed floors, allowlisted+selected critical observations, non-critical exclusion, forbidden-token absence, citation-IDs-not-content — each proves a distinct safety property at the serializer boundary | ✅ Trailing blank line trimmed (W292); `ruff format --check` clean; byte-faithful restoration from verified archive |
 
-### PR 2C (this batch — isolated slice-2c-atomic-promotion)
+### PR 2C (merged in master at 42e0b58 — isolated slice-2c-atomic-promotion)
 
 | Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
 |------|-----------|-------|------------|-----|-------|-------------|----------|
 | 3.3 (2C) | `tests/unit/test_technical_grounding_gates_report.py` | Unit | ✅ 92/92 (78 gate slice-1 + 14 harness arch) + ✅ 9/9 report (2A+2B merged at 5e4b636) | ✅ Preserved from former slice-2: the 9 `promote_` tests were RED first (module missing). Re-confirmed RED on restoration: all 9 failed with `ImportError: cannot import name 'GateReportAdapter'` against master `5e4b636` (2A+2B only) before the production block was restored | ✅ 18/18 passed (3 from 2A + 6 from 2B + 9 restored 2C) after restoring `report.py:146-207` — the adapter implements staged validation, atomic current/previous promotion, rollback, and cleanup | ✅ 9 cases: 3 staging-validation rejections (empty/malformed-json/missing-allowlist-keys — each rejects before touching committed paths), 3 atomic-promotion scenarios (first-run creates current/no-previous, replacement moves current→previous, third-run replaces old previous), 2 rollback scenarios (2nd-rename-failure restores prior current from previous, 1st-rename-failure leaves current intact), 1 staging-cleanup-on-failure — each exercises a distinct promotion/rollback code path via `_os_replace` monkeypatch seam | ✅ Re-added `from pathlib import Path` (removed by 2A isolation, required by 2C `tmp_path: Path` annotations); `ruff format` applied one boundary fix (blank line before section header + trailing-blank trim at EOF); `ruff check`/`ruff format --check`/`pyright`/`check_focused_tests.py`/`check_dependency_boundaries.py` all clean; byte-faithful restoration from revalidated archive |
 
+### PR 2D (this batch — isolated slice-2d-baseline-validation)
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| 3.4 (2D) | `tests/unit/test_technical_grounding_gates_report.py` | Unit | ✅ 92/92 (78 gate slice-1 + 14 harness arch) + ✅ 18/18 report (2A+2B+2C merged at 42e0b58) | ✅ Preserved from former slice-2: the 5 `bootstrap_baseline` tests + `_write_harness_summary` helper were RED first (module missing). Re-confirmed RED on restoration: all 7 failed (5 tests + 3 parametrized = 7 total) with `ImportError: cannot import name 'bootstrap_baseline'` against master `42e0b58` (2A+2B+2C only) before the production block was restored | ✅ 25/25 passed (3 from 2A + 6 from 2B + 9 from 2C + 7 restored 2D) after restoring `report.py:209-280` — the bootstrap resolves gate-snapshot-first then harness-fallback, validating all five signals | ✅ 7 cases: 1 first-run-from-harness (exercises the harness-fallback path with no gate current), 1 later-run-from-gate (exercises the gate-snapshot-preferred path, writes a real serialized report then reads its observed_metrics), 1 no-source-raises (both gate and harness missing), 1 malformed-harness-raises (non-JSON summary.json), 3 parametrized bad-signal rejections (zero-denominator, negative-numerator, numerator-exceeds-denominator — each exercises a distinct `_signal_from_dict` validation branch) — each exercises a distinct baseline resolution/validation code path | ✅ Re-added `import pytest` (removed by 2A isolation, required by 2D `@pytest.mark.parametrize`); trimmed archive trailing blank lines (W292 at 2E boundary); `ruff check`/`ruff format --check`/`pyright`/`check_focused_tests.py`/`check_dependency_boundaries.py` all clean; `report.py` now byte-identical to archive `report.py.full`; byte-faithful restoration from revalidated archive |
+
 ### Test Summary (combined)
-- **Total tests written across all batches**: 147 (42 policy + 36 runner + 33 report-former + 21 arch-former + 6 report-2B + 9 report-2C)
+- **Total tests written across all batches**: 154 (42 policy + 36 runner + 33 report-former + 21 arch-former + 6 report-2B + 9 report-2C + 7 report-2D)
 - **PR 2A focused tests in active candidate**: 3 (serialize_gate_report core)
 - **PR 2B focused tests restored**: 6 (critical-observations/forbidden/citation-ids safety proof)
 - **PR 2C focused tests restored**: 9 (staging validation + atomic promotion + rollback + cleanup)
-- **PR 2A+2B+2C focused tests passing**: 18
+- **PR 2D focused tests restored**: 7 (baseline bootstrap: 2 source-resolution + 2 malformed/missing rejection + 3 parametrized bad-signal validation)
+- **PR 2A+2B+2C+2D focused tests passing**: 25
 - **Layers used**: Unit
 - **Approval tests** (refactoring): None — no refactoring of existing code
-- **Pure functions created**: 6 retained in PR 2A+2C (`serialize_gate_report`, `_signal_dict`, `_metrics_dict`, `_floors_dict`, `_critical_observations`, `_validate_report_payload`); `_to_gate_metrics_from_summary` reuses the slice-1 `_to_gate_metrics`; `GateReportAdapter.promote` is the atomic-promotion method (stateful by design — validates staged payload before any committed I/O)
+- **Pure functions created**: 8 retained in PR 2A+2C+2D (`serialize_gate_report`, `_signal_dict`, `_metrics_dict`, `_floors_dict`, `_critical_observations`, `_validate_report_payload`, `_signal_from_dict`, `_metrics_from_dict`); `_to_gate_metrics_from_summary` reuses the slice-1 `_to_gate_metrics`; `GateReportAdapter.promote` is the atomic-promotion method (stateful by design — validates staged payload before any committed I/O); `bootstrap_baseline` is the baseline resolver (reads filesystem snapshots — stateful by design, validates all signals before returning)
 
 ## Work Unit Evidence
 
@@ -244,13 +272,21 @@ rewritten.
 | Runtime harness command/scenario and exact result | N/A — test-only safety-proof slice; no runtime boundary exists. The restored tests prove critical observations and forbidden content absence at the serializer boundary without adding production behavior. |
 | Rollback boundary | Revert the 189-line test append to `tests/unit/test_technical_grounding_gates_report.py` (back to 247 lines). No production code, Makefile, CLI, harness, kernel, dataset, manifest, lockfile, or dependency changes to revert. |
 
-### PR 2C (this batch)
+### PR 2C (merged in master at 42e0b58)
 
 | Evidence | Required value |
 |---|---|
 | Focused test command and exact result | `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py -q -k 'promote_'` → 9 passed, 9 deselected in 1.01s, exit 0 (after GREEN). RED before production restore: same command → 9 failed (ImportError: cannot import name 'GateReportAdapter'), exit non-zero. Full file: `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py -q` → 18 passed in 0.03s, exit 0 (3 from 2A + 6 from 2B + 9 from 2C). |
 | Runtime harness command/scenario and exact result | N/A — temp-path adapter slice; no runtime boundary exists for PR 2C alone. The `GateReportAdapter.promote` operates on a caller-supplied `base_dir` (validated in tests via `tmp_path`); the CLI wiring that invokes it (`make eval-quality-gate`) belongs to later stacked slices (2E/2F). The restored tests prove staged validation, atomic current/previous promotion, rollback on rename failure, and staging cleanup against a real filesystem via the `_os_replace` monkeypatch seam. |
 | Rollback boundary | Revert the 2C production block in `backend/features/evaluation/gates/adapters/report.py` (remove `_validate_report_payload`, `_os_replace`, `GateReportAdapter`, the `os`/`shutil`/`dataclass`/`Path` imports, and the `GateReportAdapter` `__all__` entry; restore the 2A-only docstring sentence). Revert the 2C test append + `Path` import in `tests/unit/test_technical_grounding_gates_report.py` (back to 436 lines). No baseline code (`:209-280`), Makefile, CLI, harness, kernel, dataset, manifest, lockfile, or dependency changes to revert — all still archived. |
+
+### PR 2D (this batch)
+
+| Evidence | Required value |
+|---|---|
+| Focused test command and exact result | `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py -q -k bootstrap_baseline` → 7 passed, 18 deselected in 1.03s, exit 0 (after GREEN). RED before production restore: same command → 7 failed (ImportError: cannot import name 'bootstrap_baseline'), 18 deselected, exit non-zero. Full file: `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py -q` → 25 passed in 0.04s, exit 0 (3 from 2A + 6 from 2B + 9 from 2C + 7 from 2D). |
+| Runtime harness command/scenario and exact result | N/A — snapshot-loader slice; no runtime boundary exists for PR 2D alone. `bootstrap_baseline` reads filesystem snapshots (`gate_dir/current/report.json` or `harness_current/summary.json`) supplied by the caller (validated in tests via `tmp_path`); the CLI wiring that invokes it (`make eval-quality-gate`) belongs to later stacked slices (2E/2F). The restored tests prove gate-snapshot-preferred-then-harness-fallback resolution, malformed/missing source rejection, and all five-signal validation (int/bool/negative/zero-denominator/numerator-exceeds) against real filesystem fixtures. |
+| Rollback boundary | Revert the 2D production block in `backend/features/evaluation/gates/adapters/report.py` (remove `_signal_from_dict`, `_metrics_from_dict`, `bootstrap_baseline`, the `bootstrap_baseline` `__all__` entry; restore the 2C-era "Baseline bootstrap belongs to a later stacked slice" docstring sentence). Revert the 2D test append + `import pytest` in `tests/unit/test_technical_grounding_gates_report.py` (back to 620 lines). No CLI (`cli.py`), Makefile, architecture wiring, harness, kernel, dataset, manifest, lockfile, dependency, or generated evidence changes to revert — all still archived. |
 
 ### Former Slice 2 (audit history)
 
@@ -279,9 +315,14 @@ rewritten.
 ### PR 2B (merged)
 9. **Byte-faithful restoration with one trailing-blank trim**: The 2B block was restored verbatim from the verified archive (byte-identical to archive lines 253-440). The archive block ended with a blank line that became a trailing blank at EOF (W292); ruff flagged it. The only adjustment was trimming that single trailing `\n` — no test logic or content was altered. Faithful to the restoration protocol, not a deviation.
 
-### PR 2C (this batch)
+### PR 2C (merged in master at 42e0b58)
 10. **`Path` import re-added to the test file**: PR 2A removed `from pathlib import Path` during isolation because its 3 serializer tests did not use `Path` (and `import pytest` was removed as F401). The 2C test block uses `tmp_path: Path` annotations in all 9 `promote_` test signatures and in the inner `_failing_replace`/`_always_fail` helper signatures, so `Path` is required. The archive's original full test file imported `Path` (archive line 19); re-adding it restores the original import surface, not a new dependency. This is a necessary import restoration driven by the 2C block's type annotations, consistent with the archive's own import block. Not a design deviation.
 11. **`ruff format` boundary fix**: The byte-faithful 2C block restored the archive's single blank-line separator before the section header comment (archive line 437→441). `ruff format` canonicalized this to two blank lines before the module-level section (PEP 8 two-blank rule between the prior 2B function and the 2C comment+function group) and trimmed the trailing blank line at EOF (the archive's line 623 blank, which sat before the 2D block in the original full file and became a trailing blank once 2D was not restored). These are whitespace-only canonicalizations identical in kind to the PR 2B trailing-blank trim; no test or production logic was altered. Faithful to the restoration protocol.
+
+### PR 2D (this batch)
+12. **`import pytest` re-added to the test file**: PR 2A removed `import pytest` during isolation because its 3 serializer tests used bare `assert` (no `pytest.mark`), making it an F401 unused import. The 2D test block uses `@pytest.mark.parametrize` (archive line 718) for the 3 bad-signal rejection cases, so `pytest` is required. The archive's original full test file imported `pytest` (archive line 22); re-adding it restores the original import surface, not a new dependency. This is a necessary import restoration driven by the 2D block's parametrize decorator, consistent with the archive's own import block and the repo's other gate test files (`test_technical_grounding_gates_policy.py`, `test_technical_grounding_gates_runner.py` both import `pytest`). Not a design deviation.
+13. **Trailing-blank trim at 2E boundary**: The byte-faithful 2D block restored the archive's test content through line 750 (the last `bootstrap_baseline` assertion). The archive had two blank lines at 751-752 before the 2E section header at 753. Since 2E is NOT restored, those trailing blanks became W292 violations. The only adjustment was trimming them — no test logic or content was altered. This is the same kind of whitespace-only canonicalization as the PR 2B and PR 2C trailing-blank trims. `ruff format --check` confirms the file is correctly formatted. Faithful to the restoration protocol.
+14. **`report.py` now byte-identical to archive `report.py.full`**: With the 2D production block restored, `report.py` (280 lines) matches the archive's full `report.py.full` (280 lines) byte-for-byte. This means the report adapter module is now complete through the baseline bootstrap — the only remaining archived production code is `cli.py` (2E). The 2C-era docstring sentence ("Baseline bootstrap belongs to a later stacked slice and lives in this same module once that slice lands.") was removed because the baseline is now present. This is the intended end state for the 2D slice, not a deviation.
 
 ## Issues Found
 
@@ -300,8 +341,11 @@ rewritten.
 ### PR 2B (merged)
 7. **None.** The 2B block is a byte-faithful restoration of already-written, already-RED-proven tests. The only adjustment was trimming one trailing blank line (W292) introduced by the archive block boundary. All 6 restored tests pass against the unchanged 2A serializer, confirming the serializer already emits allowlisted critical observations and forbids content tokens.
 
-### PR 2C (this batch)
+### PR 2C (merged in master at 42e0b58)
 8. **Worktree environment required `--extra dev` sync, not `--all-groups`.** The fresh git worktree's `uv sync --frozen` (and `--all-groups`) did not install the `pytest`/`ruff`/`pyright` dev tooling because `dev` is a PEP 621 `[project.optional-dependencies]` extra, not a PEP 735 dependency group. The correct restore command is `uv sync --frozen --extra dev`. This is an environment-setup note for future worktree-based apply batches, not an implementation issue. The main checkout's venv already had the tooling; only the fresh worktree needed the explicit `--extra dev` flag.
+
+### PR 2D (this batch)
+9. **None.** The 2D block is a byte-faithful restoration of already-written, already-RED-proven tests and production code. The only adjustments were re-adding `import pytest` (required by the 2D parametrize decorator, removed by 2A isolation) and trimming the archive's two trailing blank lines at the 2E boundary (W292). All 7 restored tests pass against the newly-restored `bootstrap_baseline`, confirming gate-snapshot-preferred-then-harness-fallback resolution, malformed/missing source rejection, and all five-signal validation. `report.py` is now byte-identical to the archive `report.py.full`.
 
 ## Cleanup / Process Evidence
 
@@ -326,7 +370,7 @@ rewritten.
 - Existing gate + harness tests (92) still pass — safety net confirmed.
 - Archive revalidated: all 6 archive file hashes match the MANIFEST; no later work lost or silently rewritten.
 
-### PR 2C (this batch)
+### PR 2C (merged in master at 42e0b58)
 - No commits created, no pushes, no PR opened (per instructions).
 - No `make ci` or `ci-pr2a` changes (verified: `git diff --name-only master` shows only `report.py` and the report test file; Makefile untouched).
 - No new dependencies (verified: `git diff -- pyproject.toml uv.lock` empty).
@@ -338,6 +382,19 @@ rewritten.
 - Full report test file (18) passes — 2A serializer (3) + 2B safety (6) + 2C promotion (9) all green together.
 - Archive revalidated: all 6 archive file SHA256 hashes match the MANIFEST in this file (`report.py.full`, `cli.py.full`, `test_technical_grounding_gates_report.py.full`, `test_technical_grounding_gates.py.full`, `gate-current-report.json`, `former-slice-2-tracked.diff`). Archive bytes intact; no later work lost or silently rewritten.
 - Worktree created at `RAG-worktrees/slice-2c-atomic-promotion` (branch `slice-2c-atomic-promotion`, stacked-to-main from `master` `5e4b636`); environment restored via `uv sync --frozen --extra dev`.
+
+### PR 2D (this batch)
+- No commits created, no pushes, no PR opened (per instructions).
+- No `make ci` or `ci-pr2a` changes (verified: `git diff --name-only 42e0b58` shows only `report.py` and the report test file; Makefile untouched).
+- No new dependencies (verified: `git diff -- pyproject.toml uv.lock` empty).
+- No CLI/Makefile/architecture-wiring/generated-evidence changes (verified: only 2 files changed; `cli.py`, `Makefile`, architecture test `test_technical_grounding_gates.py`, generated `gate-current-report.json`, and 2E tests (`:753-930`) all remain archived — NOT restored).
+- No harness/kernel/dataset/provider/embedding/database changes (verified: `git diff` on harness files empty).
+- No RDD/4R, no review started, no approval claimed, no roadmap update, no archive.
+- The 2 modified files pass `ruff check`, `ruff format --check`, `pyright`, `check_focused_tests.py`, and `check_dependency_boundaries.py`.
+- Existing gate + harness tests (92) still pass — safety net confirmed.
+- Full report test file (25) passes — 2A serializer (3) + 2B safety (6) + 2C promotion (9) + 2D baseline (7) all green together.
+- Archive revalidated: all 6 archive file SHA256 hashes match the MANIFEST (`report.py.full` `03040265…`, `cli.py.full` `6821a451…`, `test_technical_grounding_gates_report.py.full` `3333bfba…`, `test_technical_grounding_gates.py.full` `7f91aa50…`, `gate-current-report.json` `3d6bab10…`, `former-slice-2-tracked.diff` `f84bdf74…`). Archive bytes intact; no later work lost or silently rewritten.
+- Applied in the MAIN checkout (no worktree created); the main venv already had all tooling.
 
 ### Former Slice 2 (audit history)
 - No commits created, no pushes, no PR opened (per instructions).
@@ -392,7 +449,7 @@ rewritten.
 - Production code: unchanged (verified: `git diff --stat HEAD` shows only the test file; 0 production files modified).
 - Disposition: **PASSED** — 6 restored safety tests green against 2A's unchanged serializer; static checks clean; safety net (92) green; archive integrity revalidated; line count 190 ≤ 400; no production hunk duplicated.
 
-### PR 2C (this batch)
+### PR 2C (merged in master at 42e0b58)
 - Attempt ordinal: 5
 - Expected current revision: `sha256:0b458e9d4b8a8e6eec5fb4f99cd432e64cf397baa506d981279ad19b2c1615dc`
 - Work unit: `slice-2c-atomic-promotion`
@@ -414,6 +471,30 @@ rewritten.
 - Scope verification: only 2 files changed (`backend/features/evaluation/gates/adapters/report.py`, `tests/unit/test_technical_grounding_gates_report.py`). No baseline source (`:209-280`), CLI, Makefile, architecture wiring, harness, kernel, dataset, manifest, or lockfile changes. Baseline/CLI/Makefile/arch all remain archived — NOT restored (per PR 2C boundary).
 - Byte-fidelity: production block restored byte-faithful from archive `report.py:146-207`; test block restored byte-faithful from archive `:441-623`. Adjustments limited to: (1) re-added `from pathlib import Path` (removed by 2A isolation, required by 2C annotations, present in the archive's original import block); (2) `ruff format` canonical whitespace at the 2B→2C boundary and EOF. No test or production logic altered.
 - Disposition: **PASSED** — 9 restored promotion tests green (RED re-confirmed before GREEN); 2A+2B tests unchanged (18 total green); static checks clean; safety net (92) green; archive integrity revalidated; line count 268 ≤ 400; no out-of-scope restoration.
+
+### PR 2D (this batch)
+- Attempt ordinal: 6
+- Expected current revision: `sha256:0140b0c961450fb5eb05690533d07a2bbcbff993aded4b4540fd667472bb5967`
+- Work unit: `slice-2d-baseline-validation`
+- Did NOT call `sdd-attempt begin`, `reset`, or `finish`.
+- Focused test commands and outcomes:
+  - RED (before production restore): `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py -q -k bootstrap_baseline` → 7 failed (ImportError: cannot import name 'bootstrap_baseline'), 18 deselected in 1.15s, exit non-zero — genuine RED: all 7 tests (5 tests + 3 parametrized = 7 total) reference production code that does not exist on master `42e0b58` (2A+2B+2C only).
+  - GREEN (after restoring `report.py:209-280`): `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py -q -k bootstrap_baseline` → 7 passed, 18 deselected in 1.03s, exit 0.
+  - Full file: `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py -q` → 25 passed in 0.04s, exit 0 (3 from 2A + 6 from 2B + 9 from 2C + 7 from 2D).
+- Static checks:
+  - `uv run --frozen ruff check backend/features/evaluation/gates/adapters/report.py tests/unit/test_technical_grounding_gates_report.py` → All checks passed!, exit 0
+  - `uv run --frozen ruff format --check backend/features/evaluation/gates/adapters/report.py tests/unit/test_technical_grounding_gates_report.py` → 2 files already formatted, exit 0
+  - `uv run --frozen pyright backend/features/evaluation/gates/adapters/report.py tests/unit/test_technical_grounding_gates_report.py` → 0 errors, 0 warnings, 0 informations, exit 0
+  - `uv run --frozen python scripts/ci/check_focused_tests.py .` → no findings, exit 0
+  - `uv run --frozen python scripts/ci/check_dependency_boundaries.py .` → no findings, exit 0
+- Safety net: `uv run --frozen pytest tests/unit/test_technical_grounding_gates_policy.py tests/unit/test_technical_grounding_gates_runner.py tests/architecture/test_quality_evaluation_harness.py -q` → 92 passed in 0.12s, exit 0
+- Runtime harness: N/A — snapshot-loader slice; `bootstrap_baseline` reads filesystem snapshots (`gate_dir/current/report.json` or `harness_current/summary.json`) supplied by the caller (tested via `tmp_path`). The CLI/Makefile wiring that invokes it belongs to later stacked slices (2E/2F). No runtime boundary exists for PR 2D alone.
+- Archive revalidation: all 6 archive file SHA256 hashes re-checked and match the MANIFEST (`report.py.full` `03040265…`, `cli.py.full` `6821a451…`, `test_technical_grounding_gates_report.py.full` `3333bfba…`, `test_technical_grounding_gates.py.full` `7f91aa50…`, `gate-current-report.json` `3d6bab10…`, `former-slice-2-tracked.diff` `f84bdf74…`). Archive bytes intact.
+- Changed-line count: 201 authored lines (197 insertions + 4 deletions; 67 production + 4 docstring deletions + 130 test insertions including 1 `import pytest` re-add), excluding OpenSpec + generated evidence. 172 non-blank authored lines. Under the 400-line hard maintainer threshold; no `size:exception` requested or assumed.
+- Scope verification: only 2 files changed (`backend/features/evaluation/gates/adapters/report.py`, `tests/unit/test_technical_grounding_gates_report.py`). No CLI (`cli.py`), Makefile, architecture wiring (`test_technical_grounding_gates.py`), generated evidence (`gate-current-report.json`), 2E tests (`:753-930`), harness, kernel, dataset, manifest, or lockfile changes. CLI/Makefile/arch/2E-tests/generated-evidence all remain archived — NOT restored (per PR 2D boundary).
+- Byte-fidelity: production block restored byte-faithful from archive `report.py:209-280`; `report.py` (280 lines) is now byte-identical to the archive `report.py.full` (280 lines). Test block restored byte-faithful from archive `:625-751`; test file (750 lines) is byte-identical to the archive's first 750 lines. Adjustments limited to: (1) re-added `import pytest` (removed by 2A isolation, required by 2D `@pytest.mark.parametrize`, present in the archive's original import block); (2) trimmed archive trailing blank lines at the 2E boundary (W292). No test or production logic altered.
+- Content revision hash (PR 2D non-OpenSpec authored content): `sha256:299989764b947e52f3bfc79d83d099c93574afcab33e8a884df38468083b90a0`
+- Disposition: **PASSED** — 7 restored baseline tests green (RED re-confirmed before GREEN); 2A+2B+2C tests unchanged (25 total green); static checks clean; safety net (92) green; archive integrity revalidated; line count 201 ≤ 400; no out-of-scope restoration.
 
 ### Former Slice 2 (audit history)
 - Attempt ordinal: 2

@@ -19,6 +19,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 NEG_ONE = -1
 EXCEED_NUM = 35
 ALLOWED_REPORT_KEYS = frozenset(
@@ -618,3 +620,131 @@ def test_promote_cleans_staging_on_failure(tmp_path: Path) -> None:
 
     staging_dirs = [p for p in tmp_path.iterdir() if p.name.startswith(".staging")]
     assert staging_dirs == [], "staging must be cleaned on failure"
+
+
+# ---------------------------------------------------------------------------
+# Task 3.1 RED: baseline bootstrap
+# ---------------------------------------------------------------------------
+
+
+def _write_harness_summary(directory: Path, metrics: dict[str, Any] | None = None) -> None:
+    """Write a harness-style summary.json under directory/current/."""
+    if metrics is None:
+        metrics = {
+            "outcome_classification": {"numerator": 9, "denominator": 34},
+            "citation_exact_match": {"numerator": 10, "denominator": 34},
+            "language_routing": {"numerator": 34, "denominator": 34},
+            "sensitive_block": {"numerator": 2, "denominator": 2},
+            "contradiction_detection": {"numerator": 0, "denominator": 4},
+        }
+    current = directory / "current"
+    current.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(
+        {
+            "contract_version": "1",
+            "run_id": "harness-run",
+            "profile": "development",
+            "provider_mode": "fake",
+            "total_cases": 34,
+            "timestamp": None,
+            "duration_seconds": None,
+            "metrics": metrics,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    (current / "summary.json").write_text(payload, encoding="utf-8")
+
+
+def test_bootstrap_baseline_from_harness_snapshot_on_first_run(tmp_path: Path) -> None:
+    from backend.features.evaluation.gates.adapters.report import bootstrap_baseline
+
+    harness_current = tmp_path / "harness" / "current"
+    harness_current.mkdir(parents=True)
+    _write_harness_summary(tmp_path / "harness")
+    gate_dir = tmp_path / "gate"
+    baseline = bootstrap_baseline(
+        gate_dir=gate_dir, harness_current=tmp_path / "harness" / "current"
+    )
+    assert baseline.outcome_classification.numerator == 9
+    assert baseline.language_routing.numerator == 34
+
+
+def test_bootstrap_baseline_from_gate_snapshot_on_later_run(tmp_path: Path) -> None:
+    from backend.features.evaluation.gates.adapters.report import (
+        bootstrap_baseline,
+        serialize_gate_report,
+    )
+    from backend.features.evaluation.gates.domain import GateDecision
+
+    gate_dir = tmp_path / "gate"
+    gate_current = gate_dir / "current"
+    gate_current.mkdir(parents=True)
+    decision = GateDecision(status="pass", reason_codes=("pass",))
+    summary = _passing_summary()
+    report = serialize_gate_report(
+        decision=decision,
+        summary=summary,
+        baseline=_gate_metrics_passing(),
+        profile="development",
+        provider_mode="fake",
+        timestamp=1_700_000_000.0,
+        duration_seconds=0.0,
+    )
+    (gate_current / "report.json").write_bytes(report)
+    baseline = bootstrap_baseline(gate_dir=gate_dir, harness_current=tmp_path / "nope" / "current")
+    assert baseline.outcome_classification.numerator == 9
+
+
+def test_bootstrap_baseline_raises_when_no_source(tmp_path: Path) -> None:
+    from backend.features.evaluation.gates.adapters.report import bootstrap_baseline
+
+    with _ExpectRaise(ValueError):
+        bootstrap_baseline(
+            gate_dir=tmp_path / "gate", harness_current=tmp_path / "nope" / "current"
+        )
+
+
+def test_bootstrap_baseline_raises_on_malformed_harness_summary(tmp_path: Path) -> None:
+    from backend.features.evaluation.gates.adapters.report import bootstrap_baseline
+
+    harness_current = tmp_path / "harness" / "current"
+    harness_current.mkdir(parents=True)
+    (harness_current / "summary.json").write_text("not-json{", encoding="utf-8")
+    with _ExpectRaise((ValueError, json.JSONDecodeError)):
+        bootstrap_baseline(gate_dir=tmp_path / "gate", harness_current=harness_current)
+
+
+@pytest.mark.parametrize(
+    "bad_metrics",
+    (
+        _BAD_ZERO_DEN,
+        _BAD_NEG_NUM,
+        _BAD_EXCEED,
+    ),
+)
+def test_bootstrap_baseline_rejects_zero_denominator_or_negative(
+    tmp_path: Path, bad_metrics: dict[str, Any]
+) -> None:
+    from backend.features.evaluation.gates.adapters.report import bootstrap_baseline
+
+    full_metrics = {
+        "outcome_classification": {"numerator": 9, "denominator": 34},
+        "citation_exact_match": {"numerator": 10, "denominator": 34},
+        "language_routing": {"numerator": 34, "denominator": 34},
+        "sensitive_block": {"numerator": 2, "denominator": 2},
+        "contradiction_detection": {"numerator": 0, "denominator": 4},
+    }
+    full_metrics.update(bad_metrics)
+    harness = tmp_path / "harness"
+    (harness / "current").mkdir(parents=True)
+    (harness / "current" / "summary.json").write_text(
+        json.dumps(
+            {"metrics": full_metrics, "run_id": "x", "contract_version": "1"},
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+        encoding="utf-8",
+    )
+    with _ExpectRaise(ValueError):
+        bootstrap_baseline(gate_dir=tmp_path / "gate", harness_current=harness / "current")
