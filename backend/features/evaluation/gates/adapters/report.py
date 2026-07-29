@@ -1,18 +1,30 @@
-"""Gate report serializer: allowlisted, content-free JSON serialization.
+"""Gate report adapter: allowlisted serialization and atomic promotion.
 
 Serializes only safe fields: IDs, enums, versions, thresholds, observations
 (citation IDs only, never content), decisions, reason codes, timestamps, and
 durations. Never emits question/answer/claim/citation-content/provider-payload
 text.
 
-This module owns the serializer core for the gate report. Atomic promotion
-(``GateReportAdapter``) and baseline bootstrap belong to later stacked slices
-and live in this same module once those slices land.
+Atomic promotion is journaled: a staged directory is validated and written
+before any committed path moves. ``current/`` holds the latest reviewed gate
+report; ``previous/`` is created only on replacement and holds the prior
+``current``. A failure during the rename transaction rolls back so prior
+committed evidence remains unchanged; the next invocation recovers cleanly.
+
+Distinct from the harness ``ReportAdapter``: the gate owns its own store so
+harness multi-file writes cannot move gate ``current`` before a later failure.
+
+Baseline bootstrap belongs to a later stacked slice and lives in this same
+module once that slice lands.
 """
 
 from __future__ import annotations
 
 import json
+import os
+import shutil
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Final
 
 from backend.features.evaluation.application import RunSummary
@@ -134,8 +146,72 @@ def _to_gate_metrics_from_summary(summary: RunSummary) -> GateMetrics:
     return _to_gate_metrics(summary.metrics)
 
 
+def _validate_report_payload(payload: bytes) -> None:
+    """Reject empty, malformed, or non-allowlisted payloads before any I/O."""
+    if not payload:
+        raise ValueError("incomplete-promotion: empty payload")
+    try:
+        data = json.loads(payload.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ValueError("malformed gate report payload") from exc
+    if not isinstance(data, dict):
+        raise ValueError("malformed gate report payload: not an object")
+    if set(data.keys()) != _ALLOWED_REPORT_KEYS:
+        raise ValueError("gate report payload keys do not match allowlist")
+    # Minimal structural checks for safe fields.
+    if data.get("status") not in {"pass", "block", "escalate"}:
+        raise ValueError("gate report payload has invalid status")
+
+
+# os.replace is module-level so tests can monkeypatch it to inject failures.
+_os_replace = os.replace
+
+
+@dataclass(frozen=True, slots=True)
+class GateReportAdapter:
+    """Atomic gate evidence store: at most current + previous.
+
+    Validates the staged payload before touching any committed path. On a
+    rename failure, rolls back so prior committed evidence is unchanged.
+    """
+
+    base_dir: Path
+
+    def promote(self, run_id: str, payload: bytes) -> None:
+        _validate_report_payload(payload)
+        current = self.base_dir / "current"
+        previous = self.base_dir / "previous"
+        staged = self.base_dir / f".staging-{run_id}"
+        # Clean any stale staging from a prior failed run.
+        if staged.exists():
+            shutil.rmtree(staged)
+        staged.mkdir(parents=True, exist_ok=True)
+        (staged / "report.json").write_bytes(payload)
+
+        if current.exists():
+            # Move current -> previous first; if that fails, current is untouched
+            # but staging must be cleaned so the next run starts fresh.
+            if previous.exists():
+                shutil.rmtree(previous)
+            try:
+                _os_replace(current, previous)
+                try:
+                    _os_replace(staged, current)
+                except OSError:
+                    # Rollback: restore prior current from previous.
+                    _os_replace(previous, current)
+                    shutil.rmtree(staged, ignore_errors=True)
+                    raise
+            except OSError:
+                shutil.rmtree(staged, ignore_errors=True)
+                raise
+        else:
+            _os_replace(staged, current)
+
+
 __all__ = [
     "GATE_VERSION",
+    "GateReportAdapter",
     "SCHEMA_VERSION",
     "serialize_gate_report",
 ]

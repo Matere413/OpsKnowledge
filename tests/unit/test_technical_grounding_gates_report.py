@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 NEG_ONE = -1
@@ -434,3 +435,186 @@ def test_serialize_gate_report_citation_ids_only_not_content() -> None:
     assert obs["citation_ids"] == ["fragment.doc-001"]
     # The ID is an opaque token, not citation text/content.
     assert "fragment.doc-001" in payload.decode("utf-8")
+
+
+# ---------------------------------------------------------------------------
+# Task 3.1 RED: staging validation rejects empty/malformed payload
+# ---------------------------------------------------------------------------
+
+
+def test_promote_rejects_empty_payload_before_touching_committed_paths(tmp_path: Path) -> None:
+    from backend.features.evaluation.gates.adapters.report import GateReportAdapter
+
+    adapter = GateReportAdapter(base_dir=tmp_path)
+    with _ExpectRaise(ValueError):
+        adapter.promote(run_id="r1", payload=b"")
+    assert not (tmp_path / "current").exists()
+    assert not (tmp_path / "previous").exists()
+
+
+def test_promote_rejects_malformed_json_payload(tmp_path: Path) -> None:
+    from backend.features.evaluation.gates.adapters.report import GateReportAdapter
+
+    adapter = GateReportAdapter(base_dir=tmp_path)
+    with _ExpectRaise((ValueError, json.JSONDecodeError)):
+        adapter.promote(run_id="r1", payload=b"not-json{")
+    assert not (tmp_path / "current").exists()
+
+
+def test_promote_rejects_payload_missing_allowlisted_keys(tmp_path: Path) -> None:
+    from backend.features.evaluation.gates.adapters.report import GateReportAdapter
+
+    adapter = GateReportAdapter(base_dir=tmp_path)
+    incomplete = json.dumps({"status": "pass"}).encode("utf-8")
+    with _ExpectRaise(ValueError):
+        adapter.promote(run_id="r1", payload=incomplete)
+    assert not (tmp_path / "current").exists()
+
+
+# ---------------------------------------------------------------------------
+# Task 3.1 RED: atomic current/previous promotion
+# ---------------------------------------------------------------------------
+
+
+def _valid_report_payload(run_id: str = "r1") -> bytes:
+    from backend.features.evaluation.gates.adapters.report import serialize_gate_report
+    from backend.features.evaluation.gates.domain import GateDecision
+
+    decision = GateDecision(status="pass", reason_codes=("pass",))
+    summary = _passing_summary(run_id=run_id)
+    return serialize_gate_report(
+        decision=decision,
+        summary=summary,
+        baseline=_gate_metrics_passing(),
+        profile="development",
+        provider_mode="fake",
+        timestamp=1_700_000_000.0,
+        duration_seconds=0.0,
+    )
+
+
+def test_promote_creates_current_on_first_run(tmp_path: Path) -> None:
+    from backend.features.evaluation.gates.adapters.report import GateReportAdapter
+
+    adapter = GateReportAdapter(base_dir=tmp_path)
+    payload = _valid_report_payload("r1")
+    adapter.promote(run_id="r1", payload=payload)
+    current = tmp_path / "current"
+    assert current.exists()
+    assert (current / "report.json").read_bytes() == payload
+    assert not (tmp_path / "previous").exists(), "no previous until replacement"
+
+
+def test_promote_moves_current_to_previous_on_replacement(tmp_path: Path) -> None:
+    from backend.features.evaluation.gates.adapters.report import GateReportAdapter
+
+    adapter = GateReportAdapter(base_dir=tmp_path)
+    first = _valid_report_payload("r1")
+    adapter.promote(run_id="r1", payload=first)
+    second = _valid_report_payload("r2")
+    adapter.promote(run_id="r2", payload=second)
+    assert (tmp_path / "current" / "report.json").read_bytes() == second
+    assert (tmp_path / "previous" / "report.json").read_bytes() == first
+
+
+def test_promote_replaces_old_previous_on_third_run(tmp_path: Path) -> None:
+    from backend.features.evaluation.gates.adapters.report import GateReportAdapter
+
+    adapter = GateReportAdapter(base_dir=tmp_path)
+    adapter.promote(run_id="r1", payload=_valid_report_payload("r1"))
+    adapter.promote(run_id="r2", payload=_valid_report_payload("r2"))
+    third = _valid_report_payload("r3")
+    adapter.promote(run_id="r3", payload=third)
+    assert (tmp_path / "current" / "report.json").read_bytes() == third
+    assert (tmp_path / "previous" / "report.json").read_bytes() == _valid_report_payload("r2")
+
+
+# ---------------------------------------------------------------------------
+# Task 3.1 RED: rollback on write/rename failure leaves prior evidence unchanged
+# ---------------------------------------------------------------------------
+
+
+def test_promote_rollback_on_rename_failure_restores_current(tmp_path: Path) -> None:
+    """When the final staged->current rename fails AFTER current was moved to
+    previous, rollback restores prior current so committed evidence is unchanged."""
+    import backend.features.evaluation.gates.adapters.report as report_mod
+    from backend.features.evaluation.gates.adapters.report import GateReportAdapter
+
+    adapter = GateReportAdapter(base_dir=tmp_path)
+    first = _valid_report_payload("r1")
+    adapter.promote(run_id="r1", payload=first)
+    prior_bytes = (tmp_path / "current" / "report.json").read_bytes()
+
+    second = _valid_report_payload("r2")
+    original_replace = report_mod._os_replace
+    call_count = {"n": 0}
+
+    def _failing_replace(src: Path, dst: Path) -> None:
+        call_count["n"] += 1
+        # First replace: current -> previous (succeeds).
+        # Second replace: staged -> current (fails).
+        if call_count["n"] == 2:
+            raise OSError("injected rename failure")
+        original_replace(src, dst)
+
+    report_mod._os_replace = _failing_replace
+    try:
+        with _ExpectRaise(OSError):
+            adapter.promote(run_id="r2", payload=second)
+    finally:
+        report_mod._os_replace = original_replace
+
+    # Prior committed evidence unchanged.
+    assert (tmp_path / "current" / "report.json").read_bytes() == prior_bytes
+
+
+def test_promote_rollback_on_first_rename_failure_leaves_current_intact(tmp_path: Path) -> None:
+    """When the current->previous rename fails, current is never moved and
+    remains unchanged."""
+    import backend.features.evaluation.gates.adapters.report as report_mod
+    from backend.features.evaluation.gates.adapters.report import GateReportAdapter
+
+    adapter = GateReportAdapter(base_dir=tmp_path)
+    first = _valid_report_payload("r1")
+    adapter.promote(run_id="r1", payload=first)
+    prior_bytes = (tmp_path / "current" / "report.json").read_bytes()
+
+    second = _valid_report_payload("r2")
+    original_replace = report_mod._os_replace
+
+    def _always_fail(src: Path, dst: Path) -> None:
+        raise OSError("injected rename failure")
+
+    report_mod._os_replace = _always_fail
+    try:
+        with _ExpectRaise(OSError):
+            adapter.promote(run_id="r2", payload=second)
+    finally:
+        report_mod._os_replace = original_replace
+
+    assert (tmp_path / "current" / "report.json").read_bytes() == prior_bytes
+
+
+def test_promote_cleans_staging_on_failure(tmp_path: Path) -> None:
+    import backend.features.evaluation.gates.adapters.report as report_mod
+    from backend.features.evaluation.gates.adapters.report import GateReportAdapter
+
+    adapter = GateReportAdapter(base_dir=tmp_path)
+    first = _valid_report_payload("r1")
+    adapter.promote(run_id="r1", payload=first)
+
+    second = _valid_report_payload("r2")
+    original_replace = report_mod._os_replace
+
+    def _always_fail(src: Path, dst: Path) -> None:
+        raise OSError("injected")
+
+    report_mod._os_replace = _always_fail
+    try:
+        with _ExpectRaise(OSError):
+            adapter.promote(run_id="r2", payload=second)
+    finally:
+        report_mod._os_replace = original_replace
+
+    staging_dirs = [p for p in tmp_path.iterdir() if p.name.startswith(".staging")]
+    assert staging_dirs == [], "staging must be cleaned on failure"
