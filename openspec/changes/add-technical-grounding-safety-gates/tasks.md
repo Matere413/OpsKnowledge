@@ -15,7 +15,7 @@ Former uncommitted slice 2 measures 1,535 authored lines: report adapter 280, CL
 | 2E CLI | 2E | 255–265 | 2D; `cli.py:1-85`, report tests `:753-930` | `uv run --frozen pytest tests/unit/test_technical_grounding_gates_report.py -q -k 'run_gate_'` | `uv run --frozen python -m backend.features.evaluation.gates.cli evaluation-dataset` → safe block/1; remove CLI/tests |
 | 2F wiring | 2F | 235–245 | 2E; Makefile +9, architecture test 231 lines | `uv run --frozen pytest tests/architecture/test_technical_grounding_gates.py -q` | `make eval-quality-gate` → expected block; revert Make/test |
 
-Maximum coherent slice is ~395; no size exception or fragmentation beyond these boundaries is required. Tests remain with the behavior they prove; 2B is intentionally a focused safety-proof slice. Current native revision: `sha256:a547400df5c788e02928a257834839da38542c1292a97bbeaa9299a6fd25d9fd`, `next_action: continue` (PR 2E applied; 2F next).
+Maximum coherent slice is ~395; no size exception or fragmentation beyond these boundaries is required. Tests remain with the behavior they prove; 2B is intentionally a focused safety-proof slice. Current native revision: `sha256:d050792d7f8ef9c687901a590732d6669ef56066b39a8b1bf5a603d2df20d95b`, `next_action: continue` (PR 2F applied; Phase 4 verification next).
 
 Decision needed before apply: No
 Chained PRs recommended: Yes
@@ -32,7 +32,7 @@ Chain strategy: stacked-to-main
 - [x] 3.3 (2C) RED staging/atomic/rollback tests; GREEN `report.py:146-207`; REFACTOR cleanup and prior-byte preservation.
 - [x] 3.4 (2D) RED baseline-source/validation tests; GREEN `report.py:209-280`; REFACTOR immutable baseline handling.
 - [x] 3.5 (2E) RED exit/stdout/no-network tests; GREEN `cli.py`; REFACTOR frozen `Clock` wiring and safe errors.
-- [ ] 3.6 (2F) RED Make/CI/boundary tests; GREEN Makefile target and evidence wiring; REFACTOR no `ci`/`ci-pr2a` drift.
+- [x] 3.6 (2F) RED Make/CI/boundary tests; GREEN Makefile target and evidence wiring; REFACTOR no `ci`/`ci-pr2a` drift.
 
 ## Phase 3: Integration Verification
 - [ ] 4.1 Run all gate focused tests; preserve every specification scenario and all threat-matrix rows (all five design rows are N/A, so no threat RED tests).
