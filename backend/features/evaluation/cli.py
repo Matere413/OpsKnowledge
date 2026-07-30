@@ -36,9 +36,12 @@ def main() -> int:
     records = serialize_records(summary)
     human = serialize_human(summary)
     adapter = ReportAdapter(base_dir=eval_runs)
-    adapter.promote(run_id=summary.identity.run_id, payload=payload)
-    (adapter.base_dir / "current" / "records.jsonl").write_text(records + "\n", encoding="utf-8")
-    (adapter.base_dir / "current" / "report.txt").write_text(human, encoding="utf-8")
+    adapter.promote(
+        run_id=summary.identity.run_id,
+        payload=payload,
+        records=records,
+        report=human,
+    )
     sys.stdout.write(human)
     return 0
 

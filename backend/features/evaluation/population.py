@@ -11,6 +11,7 @@ from backend.features.evaluation.domain import INJECTED_FAILURE_CASE_IDS
 
 HUMAN_EXPERT: Final[str] = "human expert"
 POPULATION_VERSION: Final[str] = "language-abstention-v1"
+REPLACED_POPULATION_VERSION: Final[str] = "quality-evaluation-harness-v1"
 
 
 class PopulationValidationError(ValueError):

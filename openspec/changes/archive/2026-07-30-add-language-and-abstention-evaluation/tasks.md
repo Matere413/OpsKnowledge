@@ -43,5 +43,5 @@ Threat matrix: every design row is explicitly N/A; no threat-specific RED tasks 
 
 ## Phase 4: CLI, Boundaries, and Verification
 
-- [ ] 4.1 Modify `backend/features/evaluation/cli.py` to emit/promote `summary.json`, `records.jsonl`, and `report.txt` through the reviewed replacement while retaining explicit opt-in and non-persistence.
-- [ ] 4.2 Update `tests/unit/test_quality_evaluation_harness.py` and `tests/architecture/test_quality_evaluation_harness.py` for lineage, deterministic safety, manifest/mapping authority, rollback history, and unchanged `make ci`/`ci-pr2a`/gate boundaries; verify `make eval-quality`.
+- [x] 4.1 Modify `backend/features/evaluation/cli.py` to emit/promote `summary.json`, `records.jsonl`, and `report.txt` through the reviewed replacement while retaining explicit opt-in and non-persistence.
+- [x] 4.2 Update `tests/unit/test_quality_evaluation_harness.py` and `tests/architecture/test_quality_evaluation_harness.py` for lineage, deterministic safety, manifest/mapping authority, rollback history, and unchanged `make ci`/`ci-pr2a`/gate boundaries; verify `make eval-quality`.

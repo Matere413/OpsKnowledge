@@ -39,6 +39,7 @@ from backend.features.evaluation.mapping import (
 )
 from backend.features.evaluation.population import (
     CURRENT_POPULATION,
+    REPLACED_POPULATION_VERSION,
 )
 from backend.features.evaluation.ports import Clock
 
@@ -56,6 +57,11 @@ class RunSummary:
     population: object = CURRENT_POPULATION
     cases: tuple[CaseRecord, ...] = ()
     contract_metrics: ContractMetrics | None = None
+    replaces_population_version: str | None = None
+    manifest_digest: str | None = None
+    mapping_digest: str | None = None
+    timestamp: float | None = None
+    duration_seconds: float | None = None
 
 
 def assemble_cases(root: Path) -> tuple[CaseRecord, ...]:
@@ -147,13 +153,20 @@ def run_evaluation(root: Path, *, clock: Clock) -> RunSummary:
     results = tuple(adapter.execute(case) for case in cases)
     metrics = compute_metrics(results, cases)
     contract_metrics = compute_contract_metrics(results, cases)
+    manifest_digest_value = hashlib.sha256((root / "manifest.json").read_bytes()).hexdigest()
+    mapping_digest_value = mapping_digest(REVIEWED_MAPPING)
+    timestamp = clock.now()
+    duration_seconds = clock.elapsed_since_start()
     identity = RunIdentity.from_stable_inputs(
-        manifest_digest=hashlib.sha256((root / "manifest.json").read_bytes()).hexdigest(),
-        mapping_digest=mapping_digest(REVIEWED_MAPPING),
+        manifest_digest=manifest_digest_value,
+        mapping_digest=mapping_digest_value,
         contract_version=CONTRACT_VERSION,
         provider_mode=_PROVIDER_MODE,
         profile=_PROFILE,
-        clock_timestamp=clock.now(),
+        clock_timestamp=timestamp,
+        population_version=CURRENT_POPULATION.version,
+        population_digest=CURRENT_POPULATION.digest,
+        duration_seconds=duration_seconds,
     )
     return RunSummary(
         identity=identity,
@@ -162,4 +175,9 @@ def run_evaluation(root: Path, *, clock: Clock) -> RunSummary:
         population=CURRENT_POPULATION,
         cases=cases,
         contract_metrics=contract_metrics,
+        replaces_population_version=REPLACED_POPULATION_VERSION,
+        manifest_digest=manifest_digest_value,
+        mapping_digest=mapping_digest_value,
+        timestamp=timestamp,
+        duration_seconds=duration_seconds,
     )  # noqa: E501

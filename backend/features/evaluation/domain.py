@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Final
@@ -26,6 +27,7 @@ INJECTED_FAILURE_CASE_IDS: Final[tuple[str, ...]] = (
 )
 
 CONTRACT_VERSION: Final[str] = "1"
+SCHEMA_VERSION: Final[str] = "1"
 TOTAL_CASE_COUNT: Final[int] = 34
 
 
@@ -94,16 +96,26 @@ class RunIdentity:
         provider_mode: str,
         profile: str,
         clock_timestamp: float,
+        population_version: str = "",
+        population_digest: str = "",
+        duration_seconds: float = 0.0,
+        schema_version: str = SCHEMA_VERSION,
     ) -> RunIdentity:
-        material = "|".join(
-            (
-                manifest_digest,
-                mapping_digest,
-                contract_version,
-                provider_mode,
-                profile,
-                f"{clock_timestamp:.6f}",
-            )
+        material = json.dumps(
+            {
+                "schema_version": schema_version,
+                "contract_version": contract_version,
+                "population_version": population_version,
+                "population_digest": population_digest,
+                "manifest_digest": manifest_digest,
+                "mapping_digest": mapping_digest,
+                "profile": profile,
+                "provider_mode": provider_mode,
+                "timestamp_6": f"{clock_timestamp:.6f}",
+                "duration_6": f"{duration_seconds:.6f}",
+            },
+            sort_keys=True,
+            separators=(",", ":"),
         )
         return cls(run_id=hashlib.sha256(material.encode("utf-8")).hexdigest())
 
