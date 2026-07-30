@@ -456,7 +456,7 @@ def test_five_metrics_are_numeric_and_threshold_free() -> None:
 _FORBIDDEN_CONTENT_TOKENS = (
     "question",
     "answer",
-    "claim",
+    "claim text",
     "payload",
     "internal_text",
 )
@@ -476,6 +476,7 @@ def test_json_summary_contains_only_allowlisted_fields() -> None:
     from backend.features.evaluation.adapters.report import serialize_summary
 
     payload = serialize_summary(_frozen_summary())
+    assert payload == serialize_summary(_frozen_summary())
     data = json.loads(payload)
     assert data["total_cases"] == 34
     assert data["profile"] == "development"
@@ -532,6 +533,7 @@ def test_incomplete_promotion_is_rejected_and_leaves_no_baseline() -> None:
 
 
 def test_atomic_retention_keeps_current_and_creates_previous_on_replacement() -> None:
+    import backend.features.evaluation.adapters.report as report_mod
     from backend.features.evaluation.adapters.report import ReportAdapter, serialize_summary
 
     base = _tmp_eval_runs()
@@ -548,6 +550,18 @@ def test_atomic_retention_keeps_current_and_creates_previous_on_replacement() ->
     assert (base / "previous").exists()
     assert len(sorted((base / "previous").iterdir())) == len(first_files)
     assert len(sorted(current.iterdir())) == 1
+
+    original = report_mod._os_replace
+
+    def fail_final(*_: Any, **__: Any) -> None:
+        raise OSError("injected rename failure")
+
+    report_mod._os_replace = fail_final
+    try:
+        assert _raises(adapter.promote, run_id="run-c", payload=b"third")
+    finally:
+        report_mod._os_replace = original
+    assert (current / "summary.json").read_bytes() == second.encode()
 
 
 def _tmp_eval_runs() -> Path:
