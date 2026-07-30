@@ -34,7 +34,7 @@ Threat matrix: every design row is explicitly N/A; no threat-specific RED tasks 
 
 ## Phase 2: Safe Kernel Observations
 
-- [ ] 2.1 Modify `backend/features/query/application.py`, `backend/shared/ports.py`, and `backend/features/evaluation/adapters/kernel.py` so routed language is nullable/observed from evidence, adapters never infer input language, and provider failures remain typed and in-memory; add unit coverage.
+- [x] 2.1 Modify `backend/features/query/application.py`, `backend/shared/ports.py`, and `backend/features/evaluation/adapters/kernel.py` so routed language is nullable/observed from evidence, adapters never infer input language, and provider failures remain typed and in-memory; add unit coverage.
 
 ## Phase 3: Reports and Evidence Lifecycle
 

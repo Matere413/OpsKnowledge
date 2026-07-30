@@ -65,7 +65,7 @@ class CaseResult:
     """Observed result for one case. Safe fields only: ids, enums, reason codes, citation ids."""
 
     case_id: str
-    language: str
+    language: str | None
     observed_outcome: str
     reason_code: str
     citation_ids: tuple[str, ...]
