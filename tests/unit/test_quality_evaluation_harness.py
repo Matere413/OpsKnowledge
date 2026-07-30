@@ -294,6 +294,48 @@ def test_base_cases_preserve_deterministic_order_and_identity() -> None:
     assert len(set(ids)) == 32
 
 
+def test_population_is_immutable_versioned_and_has_reviewed_denominators() -> None:
+    from backend.features.evaluation.population import CURRENT_POPULATION
+
+    counts = tuple(
+        sum(getattr(c, name) for c in CURRENT_POPULATION.cases)
+        for name in ("language_eligible", "abstention_eligible", "escape_required")
+    )  # noqa: E501
+    assert (len(CURRENT_POPULATION.cases), counts) == (34, (30, 18, 18))
+    assert _raises(setattr, CURRENT_POPULATION, "version", "changed")
+
+
+def test_contract_metrics_use_frozen_expectations_and_fail_closed_ids() -> None:
+    from backend.features.evaluation.application import assemble_cases
+    from backend.features.evaluation.domain import CaseResult, compute_contract_metrics
+
+    cases = assemble_cases(_DATASET_ROOT)
+    results = tuple(
+        CaseResult(
+            c.scenario_id,
+            c.language,
+            c.expected_outcome,
+            c.expected_reason_code,
+            (),
+            True,
+            c.expected_escalation,
+        )
+        for c in cases
+    )  # noqa: E501
+    metrics = compute_contract_metrics(results, cases)
+    signals = (
+        metrics.language_accuracy,
+        metrics.correct_abstention,
+        metrics.unsupported_claim_escape,
+    )  # noqa: E501
+    assert tuple((signal.numerator, signal.denominator) for signal in signals) == (
+        (30, 30),
+        (18, 18),
+        (18, 18),
+    )  # noqa: E501
+    assert _raises(compute_contract_metrics, results[:-1], cases)
+
+
 def _scenario_path(scenario_id: str) -> str:
     import json
 
