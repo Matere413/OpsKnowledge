@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Final
 
@@ -52,6 +53,11 @@ class CaseRecord:
     safety_classification: str
     expected_evidence_ids: tuple[str, ...]
     case_type: str
+    expected_reason_code: str = "none"
+    expected_escalation: str = "human expert"
+    language_eligible: bool = True
+    abstention_eligible: bool = False
+    escape_required: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +70,8 @@ class CaseResult:
     reason_code: str
     citation_ids: tuple[str, ...]
     citations_match: bool
+    escalation: str = "human expert"
+    unsupported_claim: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,6 +138,13 @@ class Metrics:
     contradiction_detection: MetricSignal
 
 
+@dataclass(frozen=True, slots=True)
+class ContractMetrics:
+    language_accuracy: MetricSignal
+    correct_abstention: MetricSignal
+    unsupported_claim_escape: MetricSignal
+
+
 def compute_metrics(results: tuple[CaseResult, ...], cases: tuple[CaseRecord, ...]) -> Metrics:
     """Compute the five numeric, threshold-free signals.
 
@@ -174,4 +189,45 @@ def compute_metrics(results: tuple[CaseResult, ...], cases: tuple[CaseRecord, ..
         language_routing=MetricSignal(language_routed, len(results)),
         sensitive_block=MetricSignal(sensitive_blocked, sensitive_cases),
         contradiction_detection=MetricSignal(contradiction_detected, contradiction_cases),
+    )
+
+
+def compute_contract_metrics(
+    results: tuple[CaseResult, ...], cases: tuple[CaseRecord, ...]
+) -> ContractMetrics:
+    case_ids = tuple(case.scenario_id for case in cases)
+    result_ids = tuple(result.case_id for result in results)
+    if len(case_ids) != 34 or len(case_ids) != len(set(case_ids)):
+        raise ValueError("case-id-invalid")
+    if len(result_ids) != len(set(result_ids)) or set(result_ids) != set(case_ids):
+        raise ValueError("result-id-invalid")
+    by_id = {result.case_id: result for result in results}
+    groups = tuple(
+        tuple(case for case in cases if getattr(case, flag))
+        for flag in ("language_eligible", "abstention_eligible", "escape_required")
+    )  # noqa: E501
+    if tuple(map(len, groups)) != (30, 18, 18):
+        raise ValueError("metric-denominator-invalid")
+
+    def abstention_matches(case: CaseRecord) -> bool:
+        result = by_id[case.scenario_id]
+        return (
+            result.observed_outcome == case.expected_outcome
+            and result.reason_code == case.expected_reason_code
+            and not result.citation_ids
+            and result.escalation == case.expected_escalation
+        )
+
+    def signal(
+        group: tuple[CaseRecord, ...], predicate: Callable[[CaseRecord], bool]
+    ) -> MetricSignal:  # noqa: E501
+        return MetricSignal(sum(predicate(c) for c in group), len(group))
+
+    language, abstention, escape = groups
+    return ContractMetrics(
+        signal(language, lambda c: by_id[c.scenario_id].language == c.language),
+        signal(abstention, abstention_matches),
+        signal(
+            escape, lambda c: abstention_matches(c) and not by_id[c.scenario_id].unsupported_claim
+        ),  # noqa: E501
     )

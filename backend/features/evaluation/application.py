@@ -26,14 +26,19 @@ from backend.features.evaluation.domain import (
     TOTAL_CASE_COUNT,
     CaseRecord,
     CaseResult,
+    ContractMetrics,
     Metrics,
     RunIdentity,
+    compute_contract_metrics,
     compute_metrics,
 )
 from backend.features.evaluation.mapping import (
     REVIEWED_MAPPING,
     mapping_digest,
     validate_mapping,
+)
+from backend.features.evaluation.population import (
+    CURRENT_POPULATION,
 )
 from backend.features.evaluation.ports import Clock
 
@@ -48,6 +53,9 @@ class RunSummary:
     identity: RunIdentity
     results: tuple[CaseResult, ...]
     metrics: Metrics
+    population: object = CURRENT_POPULATION
+    cases: tuple[CaseRecord, ...] = ()
+    contract_metrics: ContractMetrics | None = None
 
 
 def assemble_cases(root: Path) -> tuple[CaseRecord, ...]:
@@ -57,14 +65,19 @@ def assemble_cases(root: Path) -> tuple[CaseRecord, ...]:
     (input only). Injected cases are in-memory only; never edit or persist.
     """
     payloads = base_scenario_payloads(root)
+    CURRENT_POPULATION.validate(tuple(payloads) + INJECTED_FAILURE_CASE_IDS)
     mapping_by_id = {row.scenario_id: row for row in REVIEWED_MAPPING}
     scenario_languages = {
         sid: json.loads(payload.decode("utf-8"))["language"] for sid, payload in payloads.items()
     }
     validate_mapping(REVIEWED_MAPPING, sorted(payloads), scenario_languages)
+    expected_by_id = {case.case_id: case for case in CURRENT_POPULATION.cases}
     base_cases: list[CaseRecord] = []
     for scenario_id in sorted(payloads):
         payload = json.loads(payloads[scenario_id].decode("utf-8"))
+        expected = expected_by_id[scenario_id]
+        if payload["expected_outcome"] != expected.expected_outcome:
+            raise ValueError("population-metadata-mismatch")
         row = mapping_by_id[scenario_id]
         base_cases.append(
             CaseRecord(
@@ -75,6 +88,11 @@ def assemble_cases(root: Path) -> tuple[CaseRecord, ...]:
                 safety_classification=payload["safety_classification"],
                 expected_evidence_ids=tuple(payload.get("evidence", [])),
                 case_type=payload["case_type"],
+                expected_reason_code=expected.expected_reason_code,
+                expected_escalation=expected.expected_escalation,
+                language_eligible=expected.language_eligible,
+                abstention_eligible=expected.abstention_eligible,
+                escape_required=expected.escape_required,
             )
         )
     injected = tuple(_injected_failure_case(cid, lang) for cid, lang in _injected_pairs())
@@ -113,6 +131,11 @@ def _injected_failure_case(case_id: str, language: str) -> CaseRecord:
         safety_classification="safe",
         expected_evidence_ids=(),
         case_type="unanswerable",
+        expected_reason_code="provider-timeout",
+        expected_escalation="human expert",
+        language_eligible=False,
+        abstention_eligible=True,
+        escape_required=True,
     )
 
 
@@ -123,6 +146,7 @@ def run_evaluation(root: Path, *, clock: Clock) -> RunSummary:
     adapter = KernelAdapter(corpus=corpus)
     results = tuple(adapter.execute(case) for case in cases)
     metrics = compute_metrics(results, cases)
+    contract_metrics = compute_contract_metrics(results, cases)
     identity = RunIdentity.from_stable_inputs(
         manifest_digest=hashlib.sha256((root / "manifest.json").read_bytes()).hexdigest(),
         mapping_digest=mapping_digest(REVIEWED_MAPPING),
@@ -131,4 +155,11 @@ def run_evaluation(root: Path, *, clock: Clock) -> RunSummary:
         profile=_PROFILE,
         clock_timestamp=clock.now(),
     )
-    return RunSummary(identity=identity, results=results, metrics=metrics)
+    return RunSummary(
+        identity=identity,
+        results=results,
+        metrics=metrics,
+        population=CURRENT_POPULATION,
+        cases=cases,
+        contract_metrics=contract_metrics,
+    )  # noqa: E501
