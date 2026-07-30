@@ -2,7 +2,7 @@
 
 This document is the shared development route for OpsKnowledge: a bilingual technical knowledge platform over approved, versioned runbooks, ADRs, and operational policies. It records the current product decisions and assigns each capability to the future SDD phase where it belongs.
 
-No SDD change is active unless one is in progress. The test-harness bootstrap is complete; each future candidate change below must run through its own SDD lifecycle and remain independently reviewable and reversible. Phase 1 is absorbed and reframed (not complete) under `reframe-roadmap-for-direct-corporate-product`.
+No SDD change is active unless one is in progress. The test-harness bootstrap is complete; each future candidate change below must run through its own SDD lifecycle and remain independently reviewable and reversible. Phase 1 is retired as a standalone sequencing gate under `reframe-roadmap-for-direct-corporate-product`; its undelivered runtime work is rehomed into the future production-core path and does not block starting Phase 3.
 
 ## Product boundary
 
@@ -33,7 +33,7 @@ No SDD change is active unless one is in progress. The test-harness bootstrap is
                  ↓
 Pre-Phase 1 CI hardening
                  ↓
-1. Minimal grounded OpsKnowledge core (absorbed, reframed — not complete)
+1. Historical minimal-core slice (standalone phase retired; remainder rehomed)
                  ↓
 2. Reproducible safety and quality evaluation
                  ↓
@@ -116,11 +116,11 @@ Pre-Phase 1 CI hardening
 
 ## Phase 1 — Minimal grounded OpsKnowledge core
 
-**Phase status:** [ ] Completed — reframed (not complete)
+**Phase status:** Retired as a standalone phase — absorbed into the future production-core path; no standalone completion is required.
 
 **Objective:** Implement the smallest understandable pipeline that answers only from supplied textual evidence.
 
-Phase 1 is **absorbed into the future production-core path; it is not delivered.** PR #28 / merge `12ba6926` (`feat(core): add fail-closed corpus boundary`) merged only a bounded corpus slice into the development-only, fail-closed synthetic boundary. No retrieval, prompt, provider, outcome, or CLI capability is complete. The active, unarchived SDD change `build-minimal-grounded-opsknowledge-core` is retained as auditable history; its remaining work is rehomed as pending future production-core work. See `openspec/changes/reframe-roadmap-for-direct-corporate-product/phase-1-lineage-closure.md` for the bounded receipt and pending-work inventory.
+Phase 1 is **not a forward delivery gate.** PR #28 / merge `12ba6926` (`feat(core): add fail-closed corpus boundary`) merged only a bounded corpus slice into the development-only, fail-closed synthetic boundary. No retrieval, prompt, provider, outcome, or CLI capability is implied. The active, unarchived SDD change `build-minimal-grounded-opsknowledge-core` is retained as auditable history; its remaining work is rehomed as pending future production-core work. See `openspec/changes/archive/2026-07-26-reframe-roadmap-for-direct-corporate-product/phase-1-lineage-closure.md` for the bounded receipt and pending-work inventory.
 
 **Delivered by PR #28 / `12ba6926` (bounded, fail-closed, development-only):**
 
@@ -162,13 +162,13 @@ Answer or abstention with citations
 
 **Deliberately out of scope:** approved-source synchronization, persistent vector storage, web UI, authentication, analytics, conversation history, reranking, and framework-heavy orchestration.
 
-**Candidate SDD change:**
+**Historical SDD lineage:**
 
-- [ ] `build-minimal-grounded-opsknowledge-core` — active, unarchived; reframed (not complete). Only PR #28 / `12ba6926` corpus/ports slice credited; remainder pending (see closure note). Not archived; Phase 1 is not complete.
+- `build-minimal-grounded-opsknowledge-core` — retained active and unarchived as audit history, not as a sequencing blocker. Only PR #28 / `12ba6926` corpus/ports slice is credited; all remaining runtime work is rehomed into future production-core changes.
 
 ## Phase 2 — Reproducible safety and quality evaluation
 
-**Phase status:** [ ] Completed
+**Phase status:** [x] Completed
 
 **Objective:** Establish measurable gates before adding production document and application complexity.
 
@@ -201,7 +201,7 @@ Answer or abstention with citations
 **Candidate SDD changes:**
 
 - [x] `add-opsknowledge-quality-evaluation-harness` — archived 2026-07-29; delivered a reproducible Phase 2 evaluation harness with reviewed ES/EN mapping, deterministic frozen-clock runs, safe report serialization, opt-in `make eval-quality`, and a committed 34-case baseline; final post-normalization `make ci` passed with exit 0 and 498/498 tests (output SHA-256 `d59cd0b8c2fa2b565c04e7447bf2da5fa4444070fe95371ec0bd667880211ab6`).
-- [ ] `add-technical-grounding-safety-gates`
+- [x] `add-technical-grounding-safety-gates` — archived 2026-07-29; delivered fail-closed technical-grounding thresholds and rollback-safe gate publication; final verification covered 6/6 requirements and 9/9 scenarios, with 134 focused tests and 491 canonical CI tests passing (evidence revision `sha256:a1c94376913baf42e009f6dfad60a1c286aecfd36d5d7942d6975f11efa08afb`).
 - [x] `add-language-and-abstention-evaluation` — archived 2026-07-30; delivered opt-in language-routing and abstention evaluation, deterministic current/previous/history report bundles, explicit lineage and failure semantics, and unchanged CI/release-gate boundaries; final verification covered 8/8 requirements and 8/8 scenarios, with `make ci` passing 507 tests and approved review lineage `review-b387777110774764`.
 
 ## Phase 3 — Approved-source ingestion and index lifecycle
@@ -564,4 +564,4 @@ Do not create one change named `build-complete-rag-platform`. Prefer bounded cha
 
 ## Next step
 
-Phase 0 documentation baseline and the test-harness bootstrap are complete (see Phase 0 completion notes). Phase 1 is **absorbed and reframed, not complete**: PR #28 / `12ba6926` delivered only the fail-closed synthetic corpus boundary, shared hexagonal ports, and corpus domain/application/loader; retrieval, prompt, provider, outcome, and CLI remain pending future production-core work (see `openspec/changes/reframe-roadmap-for-direct-corporate-product/phase-1-lineage-closure.md`). Phase 2 evaluation and all cross-phase safety invariants are retained unchanged. Corporate data processing is blocked until Phase 8 identity, authorization, privacy/sensitive screening, controlled provider, and TI gates pass; Phase 8 is a co-prerequisite of Phases 3–5, not a later step. The development synthetic fixture and the public-OpenAI demo risk remain separate validation-only concerns. Architecture baseline and contributor contract: `AGENTS.md` and `docs/architecture/platform-architecture.md`. CI contributor rules: `docs/contributing/ci.md`. Dependency governance evidence: `governance/direct-dependencies.yaml`.
+Phase 0 foundations and Phase 2 safety/quality evaluation are complete. Phase 1 is retired as a standalone sequencing gate: PR #28 / `12ba6926` remains the bounded fail-closed corpus/ports receipt, while retrieval, prompt, provider, outcome, and CLI work are rehomed into future production-core changes (see `openspec/changes/archive/2026-07-26-reframe-roadmap-for-direct-corporate-product/phase-1-lineage-closure.md`). The next implementation phase is **Phase 3 — Approved-source ingestion and index lifecycle**, beginning with `integrate-approved-source-repository`. Corporate data processing remains blocked until the applicable Phase 8 identity, authorization, privacy/sensitive-screening, controlled-provider, and TI gates pass; Phase 8 is a co-prerequisite of Phases 3–5, not later polish. The development synthetic fixture and the public-OpenAI demo risk remain separate validation-only concerns. Architecture baseline and contributor contract: `AGENTS.md` and `docs/architecture/platform-architecture.md`. CI contributor rules: `docs/contributing/ci.md`. Dependency governance evidence: `governance/direct-dependencies.yaml`.
