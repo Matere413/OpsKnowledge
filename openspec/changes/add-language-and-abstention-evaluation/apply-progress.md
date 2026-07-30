@@ -1,9 +1,9 @@
-# Apply Progress: Units 1–2
+# Apply Progress: Units 1–3
 
 Change: `add-language-and-abstention-evaluation`
-Mode: Standard (`strict_tdd: false`); hybrid OpenSpec + Engram; auto-chain, stacked-to-main, PR 2.
-Request: `apply-unit-2-acquire-20260730`; work unit: `unit-2-safe-kernel-observations`; native cap: 200 changed lines.
-Native attempt: already active from parent; no acquire, settle, reset, branch, commit, PR, review, or agent operation performed.
+Mode: Standard (`strict_tdd: false`); hybrid OpenSpec + Engram; auto-chain, stacked-to-main, PR 3.
+Request: `apply-unit-3-acquire-after-reset-20260730`; work unit: `unit-3-safe-reports-history`; native cap: 250 changed lines.
+Native attempt: parent-provided acquire is active; no acquire, settle, reset, branch, commit, PR, review, or agent operation performed.
 
 ## Completed
 - [x] 1.1 Immutable 34-case population, frozen expectations/flags, version/digest, timeout declarations, fail-closed validation.
@@ -31,4 +31,13 @@ Native working-tree diff including the two SDD artifacts: 152 additions+deletion
 - Rollback boundary: revert the Unit 2 hunks in the four implementation paths and harness tests; restore only `CaseResult.language` to non-nullable while preserving Unit 1 metric/population hunks, and revert only the 2.1 checkbox/progress artifact.
 - Evidence digest (ordered implementation/test bytes): `sha256:be5ed7712b08810e1e3b0571b0c73e8a58cf4902e112230ae38facfc33361f54`.
 
-Remaining: tasks 3.1–3.2 and 4.1–4.2.
+## Unit 3 Work Unit Evidence
+- [x] 3.1 Safe allowlists, sorted canonical reports, shared run identity, and protected-content exclusion.
+- [x] 3.2 Three-file staging, immutable `history/{run_id}/` snapshots, atomic backup restoration, and failure recovery.
+- Changed paths: `backend/features/evaluation/adapters/report.py`, `tests/unit/test_quality_evaluation_harness.py`, this progress file, and task checkboxes only.
+- Focused: `uv run --frozen pytest tests/unit/test_quality_evaluation_harness.py -k 'summary or records or human or promotion or report or history or rollback'` → 4 passed, 27 deselected; `uv run --frozen ruff check backend/features/evaluation/adapters/report.py tests/unit/test_quality_evaluation_harness.py` → passed; `uv run --frozen pyright backend/features/evaluation/adapters/report.py tests/unit/test_quality_evaluation_harness.py` → 0 errors, 0 warnings, 0 informations.
+- Runtime harness: N/A — no external boundary exists; in-process smoke `uv run --frozen python -c '<three-file promotion>'` → passed. CLI wiring/runtime promotion belongs to Unit 4.
+- Rollback boundary: revert the Unit 3 hunks in `report.py` and its focused tests plus only the 3.1/3.2 checkboxes/progress section; preserve Units 1–2 and `evaluation-runs/current/`.
+- Native changed-line estimate: 250 additions+deletions including SDD artifacts (227 implementation/test); evidence digest: `sha256:b1324c43f1cb03dcf40c0b2824b033bc81285fefe19f7515e1ca3ba75835d0d6`.
+
+Remaining: tasks 4.1–4.2.

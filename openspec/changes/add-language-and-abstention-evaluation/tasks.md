@@ -38,8 +38,8 @@ Threat matrix: every design row is explicitly N/A; no threat-specific RED tasks 
 
 ## Phase 3: Reports and Evidence Lifecycle
 
-- [ ] 3.1 Modify `backend/features/evaluation/adapters/report.py` to enforce exact allowlists, sorted canonical JSONL/text output, shared run identity, and exclusion of protected content; test byte determinism and safe fields.
-- [ ] 3.2 Implement staged three-file promotion and rollback: snapshot `current/` and `previous/` into immutable `history/{run_id}/`, rotate atomically with backup restoration, and never overwrite/delete history; test failure recovery.
+- [x] 3.1 Modify `backend/features/evaluation/adapters/report.py` to enforce exact allowlists, sorted canonical JSONL/text output, shared run identity, and exclusion of protected content; test byte determinism and safe fields.
+- [x] 3.2 Implement staged three-file promotion and rollback: snapshot `current/` and `previous/` into immutable `history/{run_id}/`, rotate atomically with backup restoration, and never overwrite/delete history; test failure recovery.
 
 ## Phase 4: CLI, Boundaries, and Verification
 
