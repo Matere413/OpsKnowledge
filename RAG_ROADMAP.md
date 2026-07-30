@@ -202,7 +202,7 @@ Answer or abstention with citations
 
 - [x] `add-opsknowledge-quality-evaluation-harness` — archived 2026-07-29; delivered a reproducible Phase 2 evaluation harness with reviewed ES/EN mapping, deterministic frozen-clock runs, safe report serialization, opt-in `make eval-quality`, and a committed 34-case baseline; final post-normalization `make ci` passed with exit 0 and 498/498 tests (output SHA-256 `d59cd0b8c2fa2b565c04e7447bf2da5fa4444070fe95371ec0bd667880211ab6`).
 - [ ] `add-technical-grounding-safety-gates`
-- [ ] `add-language-and-abstention-evaluation`
+- [x] `add-language-and-abstention-evaluation` — archived 2026-07-30; delivered opt-in language-routing and abstention evaluation, deterministic current/previous/history report bundles, explicit lineage and failure semantics, and unchanged CI/release-gate boundaries; final verification covered 8/8 requirements and 8/8 scenarios, with `make ci` passing 507 tests and approved review lineage `review-b387777110774764`.
 
 ## Phase 3 — Approved-source ingestion and index lifecycle
 
