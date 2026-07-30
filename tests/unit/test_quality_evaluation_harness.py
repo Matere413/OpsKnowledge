@@ -600,3 +600,136 @@ def test_r2_001_language_routing_metric_detects_mismatch() -> None:
     result = CaseResult("x.es", "en", "supported", "none", ("f.en",), True)
     m = compute_metrics((result,), cases)
     assert m.language_routing.numerator == 0
+
+
+# ---------------------------------------------------------------------------
+# Tasks 4.1–4.2: opt-in CLI promotion, lineage, deterministic safety, and
+# complete three-file history rollback.
+# ---------------------------------------------------------------------------
+
+
+def _run_quality_cli(project_root: Path) -> tuple[dict[str, bytes], str]:
+    import io
+    import sys
+
+    import backend.features.evaluation.cli as cli_module
+
+    original_root = cli_module._PROJECT_ROOT
+    original_argv = sys.argv
+    original_stdout = sys.stdout
+    output = io.StringIO()
+    try:
+        cli_module._PROJECT_ROOT = project_root
+        sys.argv = ["evaluation-cli", str(_DATASET_ROOT)]
+        sys.stdout = output
+        assert cli_module.main() == 0
+    finally:
+        cli_module._PROJECT_ROOT = original_root
+        sys.argv = original_argv
+        sys.stdout = original_stdout
+    current = project_root / "evaluation-runs" / "current"
+    files = {
+        name: (current / name).read_bytes()
+        for name in ("summary.json", "records.jsonl", "report.txt")
+    }
+    return files, output.getvalue()
+
+
+def test_cli_promotes_lineage_safe_three_file_replacement_bundle(tmp_path: Path) -> None:
+    import hashlib
+    import json
+
+    from backend.features.evaluation.mapping import REVIEWED_MAPPING, mapping_digest
+    from backend.features.evaluation.population import CURRENT_POPULATION
+
+    bundle, stdout = _run_quality_cli(tmp_path / "run")
+    summary = json.loads(bundle["summary.json"])
+    assert set(bundle) == {"summary.json", "records.jsonl", "report.txt"}
+    assert summary["population_version"] == CURRENT_POPULATION.version
+    assert summary["population_digest"] == CURRENT_POPULATION.digest
+    assert summary["replaces_population_version"] == "quality-evaluation-harness-v1"
+    assert summary["manifest_digest"] == hashlib.sha256(_MANIFEST.read_bytes()).hexdigest()
+    assert summary["mapping_digest"] == mapping_digest(REVIEWED_MAPPING)
+    assert set(summary["contract_metrics"]) == {
+        "correct_abstention",
+        "language_accuracy",
+        "unsupported_claim_escape",
+    }
+    assert {
+        name: summary["contract_metrics"][name]["denominator"]
+        for name in summary["contract_metrics"]
+    } == {
+        "correct_abstention": 18,
+        "language_accuracy": 30,
+        "unsupported_claim_escape": 18,
+    }
+    assert len([line for line in bundle["records.jsonl"].splitlines() if line]) == 34
+    assert stdout == bundle["report.txt"].decode("utf-8")
+    raw = b"".join(bundle.values()).lower()
+    for token in _FORBIDDEN_CONTENT_TOKENS:
+        assert token.encode("utf-8") not in raw
+
+
+def test_cli_frozen_runs_are_byte_deterministic(tmp_path: Path) -> None:
+    first, first_stdout = _run_quality_cli(tmp_path / "first")
+    second, second_stdout = _run_quality_cli(tmp_path / "second")
+    assert first == second
+    assert first_stdout == second_stdout
+
+
+def test_three_file_history_rollback_preserves_committed_bundle(tmp_path: Path) -> None:
+    import backend.features.evaluation.adapters.report as report_module
+    from backend.features.evaluation.adapters.clock import FrozenClock
+    from backend.features.evaluation.adapters.report import (
+        ReportAdapter,
+        serialize_human,
+        serialize_records,
+        serialize_summary,
+    )
+    from backend.features.evaluation.application import run_evaluation
+
+    def bundle(timestamp: float) -> tuple[str, bytes, str, str]:
+        summary = run_evaluation(
+            _DATASET_ROOT, clock=FrozenClock(timestamp=timestamp, duration_seconds=0.0)
+        )
+        return (
+            summary.identity.run_id,
+            serialize_summary(summary).encode("utf-8"),
+            serialize_records(summary),
+            serialize_human(summary),
+        )
+
+    adapter = ReportAdapter(base_dir=tmp_path / "evaluation-runs")
+    first_id, first_summary, first_records, first_report = bundle(1_700_000_000.0)
+    second_id, second_summary, second_records, second_report = bundle(1_700_000_001.0)
+    third_id, third_summary, third_records, third_report = bundle(1_700_000_002.0)
+    adapter.promote(first_id, first_summary, first_records, first_report)
+    adapter.promote(second_id, second_summary, second_records, second_report)
+    current = tmp_path / "evaluation-runs" / "current"
+    previous = tmp_path / "evaluation-runs" / "previous"
+    before_current = {path.name: path.read_bytes() for path in current.iterdir()}
+    before_previous = {path.name: path.read_bytes() for path in previous.iterdir()}
+
+    original_replace = report_module._os_replace
+
+    def fail_final(*_: object, **__: object) -> None:
+        raise OSError("injected final rename failure")
+
+    report_module._os_replace = fail_final
+    try:
+        assert _raises(
+            adapter.promote,
+            third_id,
+            third_summary,
+            third_records,
+            third_report,
+        )
+    finally:
+        report_module._os_replace = original_replace
+    assert {path.name: path.read_bytes() for path in current.iterdir()} == before_current
+    assert {path.name: path.read_bytes() for path in previous.iterdir()} == before_previous
+    history = tmp_path / "evaluation-runs" / "history"
+    assert (history / first_id / "staged").is_dir()
+    assert (history / second_id / "staged").is_dir()
+    assert (history / third_id / "staged").is_dir()
+    assert (history / third_id / "staged" / "summary.json").read_bytes() == third_summary

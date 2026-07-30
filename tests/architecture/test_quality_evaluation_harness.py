@@ -1,4 +1,4 @@
-"""Architecture contracts for the quality evaluation harness (Unit 3).
+"""Architecture contracts for the quality evaluation harness (Unit 4).
 
 Static contracts over the Makefile, CLI entry point, and feature source. No
 ``make`` invocation, no subprocess, no network, no database, no provider.
@@ -64,6 +64,38 @@ def test_eval_quality_uses_validated_dataset_root() -> None:
     block = _target_block(_makefile_text(), "eval-quality")
     recipe = "\n".join(line for line in block.splitlines() if line.startswith("\t"))
     assert "evaluation-dataset" in recipe, "eval-quality must point at the committed dataset root"
+
+
+def test_eval_quality_cli_promotes_all_three_files_through_report_adapter() -> None:
+    cli_path = EVAL_FEATURE / "cli.py"
+    tree = ast.parse(cli_path.read_text(encoding="utf-8"), filename=str(cli_path))
+    main = next(
+        node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node.name == "main"
+    )
+    promotions = [
+        node
+        for node in ast.walk(main)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "promote"
+    ]
+    assert len(promotions) == 1
+    keywords = {keyword.arg for keyword in promotions[0].keywords}
+    assert {"run_id", "payload", "records", "report"} <= keywords
+    assert not any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr in {"write_text", "write_bytes"}
+        for node in ast.walk(main)
+    ), "CLI must not bypass ReportAdapter with direct current-file writes"
+
+
+def test_eval_quality_and_gate_remain_outside_ci_and_ci_pr2a() -> None:
+    text = _makefile_text()
+    for target in ("ci", "ci-pr2a"):
+        block = _target_block(text, target)
+        assert "eval-quality" not in block
+        assert "eval-quality-gate" not in block
 
 
 @pytest.mark.parametrize(

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Provide a reproducible, development-only Phase 2 harness for the in-process grounded-query kernel, without changing dataset semantics or a release gate.
+Provide a reproducible, development-only Phase 2 harness for the in-process grounded-query kernel, preserving dataset semantics and the existing release gate boundary while adding language and abstention evaluation.
 
 ## Requirements
 
@@ -48,7 +48,7 @@ Execution MUST use only the `development` profile, existing in-process kernel, l
 
 ### Requirement: Measure Five Baseline Signals
 
-The harness MUST report numeric counts/rates for outcome classification, exact citation-set match, language routing, sensitive block, and contradiction detection. It MUST emit numbers only and define no release thresholds.
+The harness MUST continue reporting numeric counts/rates for outcome classification, exact citation-set match, language routing, sensitive block, and contradiction detection. It MUST emit numbers only and define no release thresholds.
 
 #### Scenario: Five measurements are complete
 
