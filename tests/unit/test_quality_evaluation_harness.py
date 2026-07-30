@@ -379,10 +379,13 @@ def test_language_isolation_routes_case_to_declared_language(
     cases = _assemble_cases()
     case = next(c for c in cases if c.scenario_id == scenario_id)
     result = _kernel_adapter().execute(case)
-    assert result.language == language
-    if result.observed_outcome == "supported":
-        for citation in result.citation_ids:
-            assert f".{language}." in citation
+    if result.reason_code != "insufficient_evidence":
+        assert result.language == language
+        if result.observed_outcome == "supported":
+            for citation in result.citation_ids:
+                assert f".{language}." in citation
+    else:
+        assert result.language is None
 
 
 def test_mapping_question_is_input_only_expected_outcome_from_dataset() -> None:
@@ -554,16 +557,26 @@ def _tmp_eval_runs() -> Path:
 
 
 # ---------------------------------------------------------------------------
-# review-6cbe7de75e833f5a R2-001: language routing observes evidence, not input
+# Task 2.1: language routing observes evidence, not input
 # ---------------------------------------------------------------------------
 
 
-def test_r2_001_observed_language_reads_from_cited_fragment_not_case_input() -> None:
-    from backend.features.evaluation.adapters.kernel import _observed_routed_language
+def test_routed_language_is_nullable_when_screening_produces_no_evidence() -> None:
+    cases = _assemble_cases()
+    case = next(c for c in cases if c.safety_classification == "sensitive")
+    result = _kernel_adapter().execute(case)
+    assert result.language is None
 
-    corpus = _load_dataset()
-    fragment = next(f for f in corpus.fragments if f.language == "en")
-    assert _observed_routed_language((fragment.identifier,), corpus, "es") == "en"
+
+def test_routed_language_is_observed_from_evidence_for_supported_case() -> None:
+    cases = _assemble_cases()
+    adapter = _kernel_adapter()
+    for case in cases:
+        result = adapter.execute(case)
+        if result.observed_outcome == "supported":
+            assert result.language == case.language
+            return
+    raise AssertionError("population must contain a supported evidence case")
 
 
 def test_r2_001_language_routing_metric_detects_mismatch() -> None:

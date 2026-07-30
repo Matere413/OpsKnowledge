@@ -1,22 +1,34 @@
-# Apply Progress: Unit 1
+# Apply Progress: Units 1–2
 
 Change: `add-language-and-abstention-evaluation`
-Mode: Standard (`strict_tdd: false`); hybrid OpenSpec + Engram; PR 1 stacked-to-main.
-Request: `apply-unit-1-20260729`; revision `sha256:1d03e1ccb11bc693894a0364583b8db1e4d1205507c64f1fbb24b12ba4694644`.
+Mode: Standard (`strict_tdd: false`); hybrid OpenSpec + Engram; auto-chain, stacked-to-main, PR 2.
+Request: `apply-unit-2-acquire-20260730`; work unit: `unit-2-safe-kernel-observations`; native cap: 200 changed lines.
+Native attempt: already active from parent; no acquire, settle, reset, branch, commit, PR, review, or agent operation performed.
 
 ## Completed
 - [x] 1.1 Immutable 34-case population, frozen expectations/flags, version/digest, timeout declarations, fail-closed validation.
 - [x] 1.2 Expected metadata snapshot, preserved five baseline signals, `/30`, `/18`, escape metrics, focused tests.
+- [x] 2.1 Nullable evidence-observed routed language, typed in-memory provider failures, and focused kernel coverage.
 
-## Changed paths and budget
-`backend/features/evaluation/population.py` (created, 89 lines); `backend/features/evaluation/domain.py` (+49/-0); `backend/features/evaluation/application.py` (+34/-10); `tests/unit/test_quality_evaluation_harness.py` (+18/-0); `openspec/changes/add-language-and-abstention-evaluation/tasks.md` (1.1/1.2 checkboxes only); `openspec/changes/add-language-and-abstention-evaluation/apply-progress.md`. Implementation diff: native accounting reports 226 changed lines, under the maintainer-approved 250-line cap.
+## Unit 1 history (preserved)
+Unit 1 changed `population.py`, evaluation `domain.py`/`application.py`, and harness tests; its recorded native accounting was 226 changed lines under the approved 250-line cap. Focused pytest passed 30 tests; targeted Ruff and Pyright passed with zero diagnostics. Runtime harness was N/A because Unit 1 had no external boundary. Population: `language-abstention-v1`, digest `4c6d2364921d5941b5b66cb6374ac654e5248c9e23f4d6368d12645a10d3d1c6`; evidence digest `8a3613c849dd997d0d58d8adc9b761ca3bb4523e9de05936094315cb0352452d`. Rollback left later units untouched.
 
-## Evidence
-- Focused: `uv run --frozen pytest tests/unit/test_quality_evaluation_harness.py` → 30 passed.
-- Static: targeted Ruff and Pyright → both passed.
-- Runtime harness: N/A — Unit 1 has no external runtime boundary; domain/application are in-process and covered by focused tests.
-- Population: version `language-abstention-v1`; digest `4c6d2364921d5941b5b66cb6374ac654e5248c9e23f4d6368d12645a10d3d1c6`; frozen smoke produced 34 cases/results and contract denominators `/30`, `/18`, `/18`.
-- Evidence digest (implementation/test bytes, ordered paths): `8a3613c849dd997d0d58d8adc9b761ca3bb4523e9de05936094315cb0352452d`.
-- Rollback boundary: revert only the four implementation/test paths and Unit 1 checkbox changes; later units remain untouched.
+## Unit 2 changed paths and budget
+- `backend/features/query/application.py` — carries nullable `routed_language`, observed only from a single-language evidence set, including typed provider-failure responses.
+- `backend/shared/ports.py` — adds nullable routed-language state to the safe response surface.
+- `backend/features/evaluation/adapters/kernel.py` — consumes application-observed language and never falls back to case input.
+- `backend/features/evaluation/domain.py` — makes `CaseResult.language` nullable to match the safe contract.
+- `tests/unit/test_quality_evaluation_harness.py` — proves nullable no-evidence behavior, evidence observation, language isolation, and typed failure outcomes.
+- `openspec/changes/add-language-and-abstention-evaluation/tasks.md` — only task 2.1 checkbox changed.
 
-Remaining: Units 2–4 (tasks 2.1, 3.1–3.2, 4.1–4.2).
+Native working-tree diff including the two SDD artifacts: 152 additions+deletions; implementation/test subset: 112. Both are under the 200-line native slice cap. No Unit 3–4 paths changed.
+
+## Unit 2 Work Unit Evidence
+- Focused: `uv run --frozen pytest tests/unit/test_quality_evaluation_harness.py -k 'language or failure'` → 10 passed, 21 deselected.
+- Ruff: targeted `uv run --frozen ruff check` → passed.
+- Pyright: targeted `uv run --frozen pyright` → 0 errors, 0 warnings, 0 informations.
+- Runtime harness: N/A — this slice has only an in-process kernel boundary; no integration or external provider harness exists.
+- Rollback boundary: revert the Unit 2 hunks in the four implementation paths and harness tests; restore only `CaseResult.language` to non-nullable while preserving Unit 1 metric/population hunks, and revert only the 2.1 checkbox/progress artifact.
+- Evidence digest (ordered implementation/test bytes): `sha256:be5ed7712b08810e1e3b0571b0c73e8a58cf4902e112230ae38facfc33361f54`.
+
+Remaining: tasks 3.1–3.2 and 4.1–4.2.

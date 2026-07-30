@@ -110,8 +110,9 @@ class SafeResponse:
     """Safe CLI response surface.
 
     Carries only the spec's safe fields: ``outcome``, fragment-ID citations,
-    escalation guidance, profile, and reason code. No answer text, no question
-    text, no citation content, no tokens.
+    escalation guidance, profile, reason code, and the nullable language
+    observed from approved evidence. No answer text, no question text, no
+    citation content, no tokens.
     """
 
     outcome: str
@@ -119,6 +120,7 @@ class SafeResponse:
     escalation: str
     profile: str
     reason_code: str
+    routed_language: str | None = None
 
 
 @runtime_checkable

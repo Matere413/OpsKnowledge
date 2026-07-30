@@ -66,8 +66,16 @@ def _response(
     *,
     escalation: str = _HUMAN_EXPERT,
     citations: tuple[str, ...] = (),
+    routed_language: str | None = None,
 ) -> SafeResponse:
-    return SafeResponse(outcome, citations, escalation, profile, reason_code)
+    return SafeResponse(
+        outcome,
+        citations,
+        escalation,
+        profile,
+        reason_code,
+        routed_language,
+    )
 
 
 def _screen(
@@ -139,12 +147,29 @@ def _valid_citations(answer: GeneratedAnswer, fragments: tuple[Fragment, ...]) -
     return citation_ids if set(citation_ids).issubset(allowed) else ()
 
 
-def _provider_failure_response(profile: str, failure: BaseException) -> SafeResponse:
+def _observed_language(fragments: tuple[Fragment, ...]) -> str | None:
+    languages = {fragment.language for fragment in fragments}
+    if len(languages) != 1:
+        return None
+    return next(iter(languages))
+
+
+def _provider_failure_response(
+    profile: str,
+    failure: BaseException,
+    *,
+    routed_language: str | None,
+) -> SafeResponse:
     if isinstance(failure, ProviderFailure):
         reason_code = failure.reason_code or "provider_failure"
     else:
         reason_code = "provider-error"
-    return _response("unavailable", profile, reason_code)
+    return _response(
+        "unavailable",
+        profile,
+        reason_code,
+        routed_language=routed_language,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -181,23 +206,39 @@ class QueryApplication:
         )
         if not fragments:
             return _response("insufficient_information", self.profile, "insufficient_evidence")
+        observed_language = _observed_language(fragments)
         if _has_contradictory_revisions(fragments):
-            return _response("contradictory_information", self.profile, "contradiction_detected")
+            return _response(
+                "contradictory_information",
+                self.profile,
+                "contradiction_detected",
+                routed_language=observed_language,
+            )
 
         prompt = build_grounded_prompt(question, routed_language, fragments)
         try:
             answer = self.generator.generate(prompt)
         except Exception as failure:
-            return _provider_failure_response(self.profile, failure)
+            return _provider_failure_response(
+                self.profile,
+                failure,
+                routed_language=observed_language,
+            )
         citations = _valid_citations(answer, fragments)
         if not citations:
-            return _response("unavailable", self.profile, "invalid_citations")
+            return _response(
+                "unavailable",
+                self.profile,
+                "invalid_citations",
+                routed_language=observed_language,
+            )
         return _response(
             "supported",
             self.profile,
             "none",
             escalation="none",
             citations=citations,
+            routed_language=observed_language,
         )
 
 
