@@ -108,8 +108,12 @@ def test_domain_value_objects_are_frozen_slot_dataclasses(type_name: str) -> Non
     assert slots, f"{type_name} is not slot-based"
     ctor: Any = cls
     instance = ctor(**{s: _value_for_slot(s) for s in slots})
-    with pytest.raises(FrozenInstanceError):
+    try:
         setattr(instance, slots[0], _value_for_slot(slots[0]))
+    except FrozenInstanceError:
+        pass
+    else:
+        raise AssertionError(f"{type_name} is not frozen")
 
 
 def _value_for_slot(slot: str) -> object:
