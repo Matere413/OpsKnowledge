@@ -242,7 +242,7 @@ Answer or abstention with citations
 
 **Candidate SDD changes:**
 
-- [ ] `integrate-approved-source-repository`
+- [x] `integrate-approved-source-repository` — archived after PASS verification with 9/9 tasks complete, 8/8 requirements and 8/8 scenarios passing, focused suite 79 passed, and canonical `make ci` 574 passed.
 - [ ] `add-versioned-pdf-and-ocr-ingestion`
 - [ ] `add-atomic-index-publication`
 - [ ] `add-index-rollback`

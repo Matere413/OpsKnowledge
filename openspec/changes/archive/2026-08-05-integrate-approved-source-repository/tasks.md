@@ -9,11 +9,11 @@
 | Chained PRs recommended | Yes |
 | Suggested split | PR 1: provider-neutral contracts; PR 2: local adapter, fixture, and boundary tests |
 | Delivery strategy | ask-on-risk |
-| Chain strategy | pending user selection |
+| Chain strategy | stacked-to-main |
 
 Decision needed before apply: Yes
 Chained PRs recommended: Yes
-Chain strategy: pending
+Chain strategy: stacked-to-main
 400-line budget risk: High
 800-line budget risk: High
 
@@ -31,16 +31,16 @@ Chain strategy: pending
 
 ## Phase 2: Local Fixture and Fail-Closed Scanner
 
-- [ ] 2.1 Add RED tests for manifest authority, unsafe paths/order, completed-empty versus incomplete scans, and whole-snapshot rejection; preserve safe diagnostic fields and exercise R2/S2, R4/S4, R5/S5–S6, and R6/S7.
-- [ ] 2.2 Create `approved-source-fixture/manifest.json` plus opaque synthetic files `runbooks/runbook-1_ESP_REV_2.pdf` and `runbooks/runbook-1_EN_REV_7.pdf`; keep the fixture outside `evaluation-dataset/` and treat files as unread semantic bytes.
-- [ ] 2.3 Implement `backend/features/indexing/adapters/{__init__.py,local_repository.py}` with development-only wiring, safe normalized paths/links, canonical manifest validation, exact filename grammar, duplicate/hash/coverage checks, deterministic output, and explicit incomplete-scan rejection.
+- [x] 2.1 Add RED tests for manifest authority, unsafe paths/order, completed-empty versus incomplete scans, and whole-snapshot rejection; preserve safe diagnostic fields and exercise R2/S2, R4/S4, R5/S5–S6, and R6/S7.
+- [x] 2.2 Create `approved-source-fixture/manifest.json` plus opaque synthetic files `runbooks/runbook-1_ESP_REV_2.pdf` and `runbooks/runbook-1_EN_REV_7.pdf`; keep the fixture outside `evaluation-dataset/` and treat files as unread semantic bytes.
+- [x] 2.3 Implement `backend/features/indexing/adapters/{__init__.py,local_repository.py}` with development-only wiring, safe normalized paths/links, canonical manifest validation, exact filename grammar, duplicate/hash/coverage checks, deterministic output, and explicit incomplete-scan rejection.
 
 ## Phase 3: Boundary and Integration Tests
 
-- [ ] 3.1 Add `tests/architecture/test_approved_source_inventory_boundary.py` proving indexing ownership, no corpus/evaluation-loader reuse, no corporate/provider imports, fixture separation, and denial before scanning for `evaluation-dataset/`, non-development, and corporate requests (R7/S8, R8/S9).
-- [ ] 3.2 Complete focused unit coverage for every diagnostic taxonomy case and assert no partial snapshot, document text, bytes, absolute path, secret, credential, or provider payload is returned.
+- [x] 3.1 Add `tests/architecture/test_approved_source_inventory_boundary.py` proving indexing ownership, no corpus/evaluation-loader reuse, no corporate/provider imports, fixture separation, and denial before scanning for `evaluation-dataset/`, non-development, and corporate requests (R7/S8, R8/S9).
+- [x] 3.2 Complete focused unit coverage for every diagnostic taxonomy case and assert no partial snapshot, document text, bytes, absolute path, secret, credential, or provider payload is returned.
 
 ## Phase 4: Canonical Verification Handoff
 
-- [ ] 4.1 Run focused unit and architecture commands from the work units; confirm the existing corpus/evaluation files and CI wiring remain unchanged.
-- [ ] 4.2 Run canonical `make ci`; record the result and confirm evaluation-dataset validation still precedes the existing quality and test stages.
+- [x] 4.1 Run focused unit and architecture commands from the work units; confirm the existing corpus/evaluation files and CI wiring remain unchanged.
+- [x] 4.2 Run canonical `make ci`; record the result and confirm evaluation-dataset validation still precedes the existing quality and test stages.
